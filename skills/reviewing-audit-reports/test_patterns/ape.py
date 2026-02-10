@@ -4,6 +4,11 @@
 import pytest
 import ape
 
+# BANNED in PoC tests:
+# - `ape.reverts()` without a match string — always use `ape.reverts("specific message")`
+# - `print()` — use assert with a message
+# - `assert x is True` / `assert x is False` — use assert x == expected_value
+
 
 @pytest.fixture
 def contract(owner, project):
@@ -26,7 +31,7 @@ def exercise_validate_finding(contract):
 
 
 def test_validate_finding_value_mismatch(contract):
-    with pytest.raises(AssertionError, match="Expected and actual values do not match"):
+    with pytest.raises(AssertionError, match="Expected and actual values do not match: 1 != 0"):
         exercise_validate_finding(contract)
 
 

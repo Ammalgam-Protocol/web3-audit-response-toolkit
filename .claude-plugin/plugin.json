@@ -1,12 +1,12 @@
 {
-  "name": "reviewing-web3-audit-reports",
+  "name": "web3-audit-response-toolkit",
   "version": "1.0.0",
-  "description": "Validates smart contract audit findings with PoC tests, producing structured ISSUE/DISPUTE artifacts and a scorecard grading audit accuracy. Built for smart contract teams drowning in false positives.",
+  "description": "Smart contract audit response toolkit — validate findings with PoC tests, then resolve confirmed vulnerabilities using TDD. Two skills: reviewing-audit-reports (validate) and resolving-audit-findings (fix).",
   "author": {
     "name": "Ammalgam Protocol",
     "url": "https://github.com/Ammalgam-Protocol"
   },
-  "repository": "https://github.com/Ammalgam-Protocol/reviewing-web3-audit-reports",
+  "repository": "https://github.com/Ammalgam-Protocol/web3-audit-response-toolkit",
   "license": "MIT",
   "keywords": [
     "web3-audit",
@@ -16,6 +16,8 @@
     "false-positive-detection",
     "vulnerability-validation",
     "audit-review",
+    "audit-remediation",
+    "tdd",
     "solidity",
     "foundry",
     "hardhat",

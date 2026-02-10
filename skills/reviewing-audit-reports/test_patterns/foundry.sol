@@ -3,6 +3,14 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 
+/**
+ * BANNED in PoC tests:
+ * - Bare `vm.expectRevert()` without a message or selector — always use
+ *   `vm.expectRevert("specific message")` or `vm.expectRevert(Error.selector)`
+ * - `console.log` / `console2.log` / `emit log` — use assertEq with a message
+ * - `assertEq(bool, true)` or `assertEq(bool, false)` — use assertGt, assertEq(uint, uint), etc.
+ */
+
 contract TEST_PATTERNS is Test {
 
     /**
