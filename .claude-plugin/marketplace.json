@@ -1,0 +1,30 @@
+{
+  "name": "reviewing-web3-audit-reports",
+  "owner": {
+    "name": "Ammalgam Protocol",
+    "email": "security@ammalgam.com"
+  },
+  "metadata": {
+    "description": "Smart contract audit review tools — validate findings with PoC tests, cut through false positives, grade audit quality",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "reviewing-web3-audit-reports",
+      "source": ".",
+      "description": "Validates smart contract audit findings by creating PoC tests that confirm or dispute each claimed vulnerability. Produces structured artifacts and a scorecard grading the audit.",
+      "version": "1.0.0",
+      "author": { "name": "Ammalgam Protocol" },
+      "license": "MIT",
+      "keywords": [
+        "web3-audit",
+        "smart-contract-audit",
+        "smart-contracts",
+        "proof-of-concept",
+        "false-positive-detection",
+        "web3-security"
+      ],
+      "category": "security"
+    }
+  ]
+}

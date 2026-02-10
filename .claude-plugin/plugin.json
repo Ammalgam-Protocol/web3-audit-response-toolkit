@@ -1,0 +1,25 @@
+{
+  "name": "reviewing-web3-audit-reports",
+  "version": "1.0.0",
+  "description": "Validates smart contract audit findings with PoC tests, producing structured ISSUE/DISPUTE artifacts and a scorecard grading audit accuracy. Built for smart contract teams drowning in false positives.",
+  "author": {
+    "name": "Ammalgam Protocol",
+    "url": "https://github.com/Ammalgam-Protocol"
+  },
+  "repository": "https://github.com/Ammalgam-Protocol/reviewing-web3-audit-reports",
+  "license": "MIT",
+  "keywords": [
+    "web3-audit",
+    "smart-contract-audit",
+    "smart-contracts",
+    "proof-of-concept",
+    "false-positive-detection",
+    "vulnerability-validation",
+    "audit-review",
+    "solidity",
+    "foundry",
+    "hardhat",
+    "web3-security"
+  ],
+  "category": "security"
+}
