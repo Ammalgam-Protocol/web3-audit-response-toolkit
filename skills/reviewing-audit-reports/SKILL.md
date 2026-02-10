@@ -16,7 +16,7 @@ metadata:
 
 Every finding gets a PoC test. The test determines truth, not the auditor's claims.
 
-This skill orchestrates auditing review sessions. Subagents do the per-finding work — the orchestrator plans, dispatches, tracks state, and generates the final scorecard.
+This skill orchestrates auditing review sessions. Subagents do the per-finding work — the orchestrator sets up, dispatches, tracks state, and generates the final scorecard.
 
 ## When to Use
 
@@ -33,7 +33,7 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 ## Contents
 
 - [Inputs](#inputs) / [Scope](#scope)
-- [Phase 0: Setup and Plan](#phase-0-setup-and-plan)
+- [Phase 0: Setup](#phase-0-setup)
 - [Phase 1: Dispatch and Track](#phase-1-dispatch-and-track) — batching, STATE.md protocol
 - [Phase 2: Final Scorecard](#phase-2-final-scorecard)
 - [Subagent Prompt](SUBAGENT_PROMPT.md) — passed verbatim to each agent
@@ -45,23 +45,23 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 
 ## Rationalizations (Do Not Skip)
 
-| Rationalization | Why It's Wrong | Required Action |
-| --- | --- | --- |
-| "The auditor is reputable, so the finding is valid" | Reputation ≠ correctness | Write a PoC — let code decide |
-| "I'll accept the severity as stated" | Auditors inflate severity | Assess independently using rubric |
-| "The test is too hard to write" | Hard-to-test claims are often wrong | Simplify setup; flag for manual review if impossible |
-| "I already know this is valid/invalid" | Prior belief is not evidence | Write the test regardless |
-| "I'll batch the artifacts and present later" | Artifacts may be lost if session fails | Save to disk immediately |
-| "The agent can return the full test code" | Full code causes context explosion | Agents save to disk, return 1-line summary only |
+| Rationalization                                     | Why It's Wrong                         | Required Action                                      |
+| --------------------------------------------------- | -------------------------------------- | ---------------------------------------------------- |
+| "The auditor is reputable, so the finding is valid" | Reputation ≠ correctness               | Write a PoC — let code decide                        |
+| "I'll accept the severity as stated"                | Auditors inflate severity              | Assess independently using rubric                    |
+| "The test is too hard to write"                     | Hard-to-test claims are often wrong    | Simplify setup; flag for manual review if impossible |
+| "I already know this is valid/invalid"              | Prior belief is not evidence           | Write the test regardless                            |
+| "I'll batch the artifacts and present later"        | Artifacts may be lost if session fails | Save to disk immediately                             |
+| "The agent can return the full test code"           | Full code causes context explosion     | Agents save to disk, return 1-line summary only      |
 
 ---
 
 ## Inputs
 
-| Input | Description |
-| --- | --- |
-| **Audit report path** | Path to the audit report file. Required — ask if not provided. |
-| **Commit hash** | The git commit the audit was performed against. Infer from report; ask only if absent. |
+| Input                 | Description                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| **Audit report path** | Path to the audit report file. Required — ask if not provided.                         |
+| **Commit hash**       | The git commit the audit was performed against. Infer from report; ask only if absent. |
 
 ---
 
@@ -69,14 +69,14 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 
 Process **all findings** in the report. One report per session.
 
-| Parameter | Default | Description |
-| --- | --- | --- |
+| Parameter           | Default     | Description                      |
+| ------------------- | ----------- | -------------------------------- |
 | **Severity filter** | Two highest | Which severity levels to include |
-| **Selection** | Sequential | Processing order |
+| **Selection**       | Sequential  | Processing order                 |
 
 ---
 
-## Phase 0: Setup and Plan
+## Phase 0: Setup
 
 1. **Checkout audited commit**: `git stash && git checkout {commit_hash}`
 2. **Read the full audit report**
@@ -88,13 +88,12 @@ Process **all findings** in the report. One report per session.
 5. **Verify the test directory** — check build config for where tests live
 6. **Create finding list** with line offsets for the report file:
 
-   | ID | Title | Severity | Affected File(s) | Report Lines |
-   | --- | --- | --- | --- | --- |
-   | ... | ... | ... | ... | {start}-{end} |
+   | ID  | Title | Severity | Affected File(s) | Report Lines  |
+   | --- | ----- | -------- | ---------------- | ------------- |
+   | ... | ...   | ...      | ...              | {start}-{end} |
 
 7. **Request write permissions** — blanket access to `{test_dir}/audit_review/`
 8. **Initialize STATE.md** — see [State Protocol](#state-protocol)
-9. **Present the plan** to user for approval
 
 ---
 
@@ -124,9 +123,9 @@ All session state lives on disk in `{test_dir}/audit_review/STATE.md`. The orche
 
 ## Remaining Findings
 
-| ID | Title | Severity | Report Lines |
-| --- | --- | --- | --- |
-| ... | ... | ... | ... |
+| ID  | Title | Severity | Report Lines |
+| --- | ----- | -------- | ------------ |
+| ... | ...   | ...      | ...          |
 ```
 
 ### Dispatch Loop
@@ -180,31 +179,31 @@ Read all result lines from STATE.md. For confirmed findings, read the ISSUE.md t
 **Total Findings:** {N}
 **Audit Quality Score: {XX.XX} / 100**
 
-| Category | Count | Percentage |
-| --- | --- | --- |
-| Confirmed (severity accurate) | X | X% |
-| Confirmed (severity overstated) | X | X% |
-| Disputed | X | X% |
-| Duplicate | X | X% |
+| Category                        | Count | Percentage |
+| ------------------------------- | ----- | ---------- |
+| Confirmed (severity accurate)   | X     | X%         |
+| Confirmed (severity overstated) | X     | X%         |
+| Disputed                        | X     | X%         |
+| Duplicate                       | X     | X%         |
 
 ## Findings Summary
 
 Sorted: Disputed first, then confirmed by assessed severity (Critical → Low).
 
-| ID | Title | Auditor Severity | Status | Assessed Severity | Finding Score | Validity Confidence | Severity Confidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| ... | ... | ... | ... | ... | ... | ... | ... |
+| ID  | Title | Auditor Severity | Status | Assessed Severity | Finding Score | Validity Confidence | Severity Confidence |
+| --- | ----- | ---------------- | ------ | ----------------- | ------------- | ------------------- | ------------------- |
+| ... | ...   | ...              | ...    | ...               | ...           | ...                 | ...                 |
 
 ## Score Calculation
 
 Severity weights: Critical=8, High=4, Medium=2, Low=1, Info=0.
 Weight = max(auditor severity weight, assessed severity weight).
-Formula: contribution = (weight / total_weight) * 100 * (score / 5)
+Formula: contribution = (weight / total_weight) _ 100 _ (score / 5)
 
-| ID | Severity Weight | Share of 100 | Finding Score | Contribution |
-| --- | --- | --- | --- | --- |
-| ... | ... | ... | ... | ... |
-| **Total** | {total} | | | **{final}** |
+| ID        | Severity Weight | Share of 100 | Finding Score | Contribution |
+| --------- | --------------- | ------------ | ------------- | ------------ |
+| ...       | ...             | ...          | ...           | ...          |
+| **Total** | {total}         |              |               | **{final}**  |
 ```
 
 ---
@@ -226,15 +225,15 @@ Formula: contribution = (weight / total_weight) * 100 * (score / 5)
 
 ## Common Mistakes
 
-| Mistake | Prevention |
-| --- | --- |
-| Not reading STATE.md each iteration | Always read STATE.md before dispatching |
-| Keeping agent results in orchestrator memory | Append to STATE.md, discard from context |
-| Processing multiple reports in one session | One report per session |
-| Agents returning full code in responses | Agents save to disk, return 1-line summary |
-| Batching multiple findings per agent | One finding per agent |
+| Mistake                                              | Prevention                                           |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| Not reading STATE.md each iteration                  | Always read STATE.md before dispatching              |
+| Keeping agent results in orchestrator memory         | Append to STATE.md, discard from context             |
+| Processing multiple reports in one session           | One report per session                               |
+| Agents returning full code in responses              | Agents save to disk, return 1-line summary           |
+| Batching multiple findings per agent                 | One finding per agent                                |
 | Not filling template variables in SUBAGENT_PROMPT.md | Check all `{variables}` are resolved before dispatch |
-| Skipping duplicate detection context | Always pass processed findings to agents |
+| Skipping duplicate detection context                 | Always pass processed findings to agents             |
 
 ---
 
