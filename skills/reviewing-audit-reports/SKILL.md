@@ -62,6 +62,7 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 | --------------------- | -------------------------------------------------------------------------------------- |
 | **Audit report path** | Path to the audit report file. Required — ask if not provided.                         |
 | **Commit hash**       | The git commit the audit was performed against. Infer from report; ask only if absent. |
+| **Report slug**       | Compact directory name: `{description}-{commit_hash}`. Derived from report filename and audited commit. Examples: `savant-ai-scan-1eb2f41d`, `chainsecurity-manual-e53b22fc`, `cantina-competition-a3f9c01b`. |
 
 ---
 
@@ -92,8 +93,9 @@ Process **all findings** in the report. One report per session.
    | --- | ----- | -------- | ---------------- | ------------- |
    | ... | ...   | ...      | ...              | {start}-{end} |
 
-7. **Request write permissions** — blanket access to `{test_dir}/audit_review/`
-8. **Initialize STATE.md** — see [State Protocol](#state-protocol)
+7. **Derive report slug** — compact directory name from report filename (e.g., `savant-core-v1`). Confirm with user.
+8. **Request write permissions** — blanket access to `{test_dir}/audit_review/{report_slug}/`
+9. **Initialize STATE.md** — see [State Protocol](#state-protocol)
 
 ---
 
@@ -101,7 +103,7 @@ Process **all findings** in the report. One report per session.
 
 ### State Protocol
 
-All session state lives on disk in `{test_dir}/audit_review/STATE.md`. The orchestrator reads this file at the start of each batch cycle. This keeps orchestrator context flat regardless of how many findings are processed.
+All session state lives on disk in `{test_dir}/audit_review/{report_slug}/STATE.md`. The orchestrator reads this file at the start of each batch cycle. This keeps orchestrator context flat regardless of how many findings are processed.
 
 **STATE.md format:**
 
@@ -135,7 +137,7 @@ Maintain a **rolling pool of up to 3 concurrent agents**. Instead of dispatching
 1. **Read STATE.md** — get the current processed/remaining state
 2. **Fill the pool to 3** — dispatch agents for findings from Remaining (respecting grouping rules), constructing each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
    - `{test_pattern_path}` → absolute path to the framework's test pattern file
-   - `{output_dir}` → `{test_dir}/audit_review/{finding_id}/`
+   - `{output_dir}` → `{test_dir}/audit_review/{report_slug}/{finding_id}/`
    - `{report_path}` → path to audit report
    - `{report_lines}` → line range for this finding
    - `{finding_id}` → the finding's ID
@@ -166,7 +168,7 @@ Maintain a **rolling pool of up to 3 concurrent agents**. Instead of dispatching
 
 ## Phase 2: Final Scorecard
 
-After all findings are processed, generate `{test_dir}/audit_review/SCORECARD.md`.
+After all findings are processed, generate `{test_dir}/audit_review/{report_slug}/SCORECARD.md`.
 
 Read all result lines from STATE.md. For confirmed findings, read the ISSUE.md to get quality dimension scores.
 
@@ -212,13 +214,14 @@ Formula: contribution = (weight / total_weight) _ 100 _ (score / 5)
 
 ```
 {test_dir}/audit_review/
-  STATE.md                        ← session state (orchestrator reads/writes)
-  SCORECARD.md                    ← final scorecard (Phase 2)
-  {finding_id}/
-    POC.{ext}                     ← confirmed findings only
-    ISSUE.md                      ← confirmed findings
-    DISPUTE.md                    ← disputed findings
-    DUPLICATE.md                  ← duplicate findings
+  {report_slug}/                    ← one directory per report (e.g., savant-core-v1/)
+    STATE.md                        ← session state (orchestrator reads/writes)
+    SCORECARD.md                    ← final scorecard (Phase 2)
+    {finding_id}/
+      POC.{ext}                     ← confirmed findings only
+      ISSUE.md                      ← confirmed findings
+      DISPUTE.md                    ← disputed findings
+      DUPLICATE.md                  ← duplicate findings
 ```
 
 ---
