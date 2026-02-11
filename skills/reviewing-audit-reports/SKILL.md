@@ -128,31 +128,31 @@ All session state lives on disk in `{test_dir}/audit_review/STATE.md`. The orche
 | ... | ...   | ...      | ...          |
 ```
 
-### Dispatch Loop
+### Dispatch Loop — Rolling Pool
 
-Each iteration of the loop:
+Maintain a **rolling pool of up to 3 concurrent agents**. Instead of dispatching fixed batches and waiting for all 3 to finish, dispatch replacements as agents complete:
 
-1. **Read STATE.md** — get next batch of up to 3 findings from Remaining
-2. **Construct subagent prompts** — for each finding:
-   - Read [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) and fill in template variables:
-     - `{test_pattern_path}` → absolute path to the framework's test pattern file
-     - `{output_dir}` → `{test_dir}/audit_review/{finding_id}/`
-     - `{report_path}` → path to audit report
-     - `{report_lines}` → line range for this finding
-     - `{finding_id}` → the finding's ID
-     - `{report_name}` → name of the audit report
-     - `{poc_filename}` → PoC test filename for the detected framework (`POC.sol`, `POC.ts`, or `POC.py`)
-     - `{processed_findings}` → pipe-delimited lines from STATE.md (for duplicate detection)
-   - Append finding-specific context (report lines, affected files)
-3. **Dispatch up to 3 agents in parallel** — one finding per agent
-4. **Collect results** — each agent returns a single pipe-delimited line
-5. **Update STATE.md** — move findings from Remaining to Processed, append result lines
-6. **Repeat** until Remaining is empty
+1. **Read STATE.md** — get the current processed/remaining state
+2. **Fill the pool to 3** — dispatch agents for findings from Remaining (respecting grouping rules), constructing each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
+   - `{test_pattern_path}` → absolute path to the framework's test pattern file
+   - `{output_dir}` → `{test_dir}/audit_review/{finding_id}/`
+   - `{report_path}` → path to audit report
+   - `{report_lines}` → line range for this finding
+   - `{finding_id}` → the finding's ID
+   - `{report_name}` → name of the audit report
+   - `{poc_filename}` → PoC test filename for the detected framework (`POC.sol`, `POC.ts`, or `POC.py`)
+   - `{processed_findings}` → pipe-delimited lines from STATE.md (for duplicate detection)
+3. **When any agent completes** — collect its 1-line result, update STATE.md immediately, then dispatch the next finding to refill the pool
+4. **Repeat** until Remaining is empty and all agents have returned
+
+**Why rolling, not fixed batches:** A single complex finding (e.g., integration test with full complex setup) can take 6+ minutes while simpler library-level tests finish in 90 seconds. Fixed batches force the orchestrator to idle until the slowest agent completes. Rolling dispatch keeps all 3 slots occupied.
+
+**Practical implementation:** If the orchestrator's tooling doesn't support waiting on individual agents (e.g., only blocking `TaskOutput` calls), fall back to fixed batches of 3 — but when a batch completes with mixed timing, note which findings were slow and avoid grouping multiple slow-looking findings (integration tests, liquidation flows) in the same batch.
 
 ### Grouping Rules
 
-- Findings touching the **same file** go in **different batches** (avoid conflicting writes)
-- Findings touching **different files** can share a batch
+- Findings touching the **same file** go in **different dispatch slots** (avoid conflicting writes)
+- Findings touching **different files** can share concurrent slots
 - Never exceed **3 concurrent agents**
 
 ### Context Management
