@@ -99,28 +99,31 @@ This wasn't just a few sessions of AI to build this. I used all of our reports a
 
 ## Validation
 
-The review skill was validated against four completed smart contract audit reports where we already knew the correct outcomes — a competitive audit, a manual audit from a professional firm, and two AI-powered scanners. In each case, the team had already reviewed every finding manually before running the skill, so the skill's results could be compared against known ground truth.
+The review skill was validated against three completed smart contract audit reports where we already knew the correct outcomes — a competitive audit, a manual audit from a professional firm, and one AI-powered scanner. In each case, the team had already reviewed every finding manually before running the skill, so the skill's results could be compared against known ground truth. Two additional AI scanner reports (B and C) were processed without prior manual review — manual verification of the skill's results is currently in progress for those.
 
-| Report Type        | Findings Reviewed | Confirmed | Severity Accurate | Severity Overstated | Disputed  |
-| ------------------ | :---------------: | :-------: | :---------------: | :-----------------: | :-------: |
-| Competition        |        10         | 10 (100%) |         9         |          1          |  0 (0%)   |
-| Manual audit       |        10         | 10 (100%) |         8         |          2          |  0 (0%)   |
-| AI scanner (beta)  |        24         |  8 (33%)  |         4         |          4          | 16 (67%)  |
-| AI scanner (254)   |       254         | 56 (22%)  |        30         |         26          | 181 (71%) |
+| Report Type         | Confirmed | Severity Accurate | Severity Overstated | Disputed |
+| ------------------- | :-------: | :---------------: | :-----------------: | :------: |
+| Competition         |   100%    |        90%        |         10%         |    0%    |
+| Manual audit        |   100%    |        80%        |         20%         |    0%    |
+| AI scanner A (beta) |    33%    |        17%        |         17%         |   67%    |
+| AI scanner B        |    22%    |        12%        |         10%         |   71%    |
+| AI scanner C (beta)†|    11%    |        2.5%       |        8.5%         |  77.5%   |
+
+†80 findings scored. 97 additional findings were self-identified as invalid by the auditor — all correctly identified (0 confirmed vulnerabilities). 11% of scored findings were duplicates. Audit quality score: 6.73/100.
 
 ### Key Observations
 
-**The skill matched our independent results.** Across all four reports, the skill's confirmations and disputes aligned with what we had already determined through manual review. This wasn't the skill discovering unknowns — it was reproducing known outcomes, which is what gave us confidence it was working correctly.
+**The skill matched our independent results.** Across the three validated reports, the skill's confirmations and disputes aligned with what we had already determined through manual review. This wasn't the skill discovering unknowns — it was reproducing known outcomes, which is what gave us confidence it was working correctly.
 
 **High-quality reports produce high confirmation rates.** The competition had a 100% confirmation rate and the manual audit had 100% — zero disputed findings in either. The skill confirmed what good auditors found and only flagged severity disagreements where warranted.
 
-**The skill reliably identifies false positives.** The AI scanners had dispute rates of 67% and 71% respectively — the skill flagged findings where the scanners misunderstood protocol-specific protections, cited unreachable preconditions, or described vulnerabilities that existing safeguards already prevented. One issue was improperly invalidated during manual review and the tool helped to demonstrate the issue.
+**The skill reliably identifies false positives.** The AI scanners had dispute rates of 67%, 71%, and 77.5% — the skill flagged findings where the scanners misunderstood protocol-specific protections, cited unreachable preconditions, or described vulnerabilities that existing safeguards already prevented. One issue was improperly invalidated during manual review and the tool helped to demonstrate the issue.
 
 **The skill scales to large reports.** The 254-finding AI scanner report was processed across multiple sessions using the STATE.md crash-resilience protocol. The skill maintained consistency throughout, processing all findings and producing 261 PoC tests with structured artifacts for each.
 
 **Cross-validation confirms reproducibility.** The 46 highest-severity confirmed findings from the 254-finding report were independently re-reviewed in a separate session. The re-review produced consistent results: it confirmed 39 findings, identified 4 duplicates the original review missed, and disputed 3 findings the original had confirmed. The re-review also improved severity calibration, reassessing 17 findings (12 upgraded, 5 downgraded) for an audit quality score of 84.19/100.
 
-**Every finding — confirmed or disputed — has an executable PoC.** Across all four reviews plus the re-review, 318 PoC tests were written and all pass. No finding is accepted or rejected based on claims alone.
+**Every finding — confirmed or disputed — has an executable PoC.** Across all five reviews plus the re-review, 439 PoC tests were written and all pass. No finding is accepted or rejected based on claims alone.
 
 ## How It Works
 

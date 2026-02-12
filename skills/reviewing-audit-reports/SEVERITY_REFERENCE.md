@@ -21,6 +21,25 @@ Consolidated severity rubric synthesized from top Web3 auditors: Sherlock, Canti
 5. **Privilege Requirements** : Exploits requiring elevated privileges may be downgraded
 6. **Professional Judgment** : Case-by-case considering threat models and project context
 
+## Disputed vs Confirmed (Informational)
+
+A finding can only be one of these. The distinction is precise:
+
+| Classification | When to Use | PoC Behavior |
+|---|---|---|
+| **Disputed** | The auditor's claim about what the code does is **factually wrong**. The described vulnerability does not exist. | PoC proves the system behaves correctly — the auditor misread the code. |
+| **Confirmed (Informational)** | The auditor identified a **real observable behavior** (code quality issue, naming confusion, design smell), but it has **no security impact** and no profitable exploit path. | PoC may show the behavior exists, but demonstrates it causes no harm. |
+
+**Decision rule:** If you can write a test that proves the auditor's described behavior *does not occur*, it's Disputed. If the behavior occurs but causes no damage, it's Confirmed (Informational).
+
+**Examples from practice:**
+- Auditor claims "function X erases interest" but interest accrual happens before the call → **Disputed** (claim is wrong)
+- Auditor claims "parameter naming could cause maintenance bugs" and the naming IS confusing, but the system works correctly → **Confirmed (Informational)**
+- Auditor claims "stale reserves during callback" and reserves ARE stale, but this is fundamental AMM design identical to Uniswap V2 → **Disputed** (known design characteristic, not a vulnerability)
+- Auditor claims "excess repayment confiscated" but the excess is documented anti-skimming protocol fees → **Disputed** (intentional design)
+
+**Caution:** Do not let Confirmed (Informational) become a dumping ground for disputes. The bar is: a reasonable developer reading the finding would agree the described code-level observation is real, even if the security conclusion is wrong.
+
 ## Severity Dispute Criteria
 
 When disputing severity, document:

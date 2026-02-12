@@ -53,6 +53,9 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 | "I already know this is valid/invalid"              | Prior belief is not evidence           | Write the test regardless                            |
 | "I'll batch the artifacts and present later"        | Artifacts may be lost if session fails | Save to disk immediately                             |
 | "The agent can return the full test code"           | Full code causes context explosion     | Agents save to disk, return 1-line summary only      |
+| "I'll run Phase 0 inline to keep it simple"         | Phase 0 reads 100KB+ reports + codebase | Phase 0 runs in a subagent; orchestrator starts empty |
+| "The happy path works, so the finding is wrong"     | Edge cases are where bugs hide          | Test the auditor's exact scenario, then all edges     |
+| "It's not a real bug, so I'll just dispute it"      | Code quality issues deserve recognition | Use Confirmed (Informational) — see SEVERITY_REFERENCE |
 
 ---
 
@@ -77,25 +80,41 @@ Process **all findings** in the report. One report per session.
 
 ---
 
-## Phase 0: Setup
+## Phase 0: Setup (Subagent)
 
-1. **Checkout audited commit**: `git stash && git checkout {commit_hash}`
-2. **Read the full audit report**
-3. **Discover the testing stack** — detect framework, existing test patterns, shared fixtures, build commands
-4. **Select the test pattern file and PoC filename** — match the project's framework:
-   - Foundry/Forge → `test_patterns/foundry.sol`, PoC filename: `POC.sol`
-   - Hardhat → `test_patterns/hardhat.ts`, PoC filename: `POC.ts`
-   - Ape/Brownie → `test_patterns/ape.py`, PoC filename: `POC.py`
-5. **Verify the test directory** — check build config for where tests live
-6. **Create finding list** with line offsets for the report file:
+**Phase 0 runs entirely inside a subagent** to keep the orchestrator's context empty for Phase 1 dispatch. The orchestrator dispatches one setup agent and receives back only the path to the initialized STATE.md.
 
-   | ID  | Title | Severity | Affected File(s) | Report Lines  |
-   | --- | ----- | -------- | ---------------- | ------------- |
-   | ... | ...   | ...      | ...              | {start}-{end} |
+### Setup Agent Instructions
 
-7. **Derive report slug** — compact directory name from report filename (e.g., `savant-core-v1`). Confirm with user.
-8. **Request write permissions** — blanket access to `{test_dir}/audit_review/{report_slug}/`
-9. **Initialize STATE.md** — see [State Protocol](#state-protocol)
+Dispatch a single `general-purpose` agent with this task:
+
+> You are the setup agent for an audit review session. Perform ALL of the following steps, save outputs to disk, and return a 1-line summary.
+>
+> 1. **Checkout audited commit**: `git stash && git checkout {commit_hash}`
+> 2. **Read the full audit report** at `{report_path}`
+> 3. **Discover the testing stack** — detect framework, existing test patterns, shared fixtures, build commands. Dispatch up to **2 Explore agents in parallel**: one for source structure + contract architecture, one for test stack + existing fixtures.
+> 4. **Select the test pattern file and PoC filename** — match the project's framework:
+>    - Foundry/Forge → `test_patterns/foundry.sol`, PoC filename: `POC.sol`
+>    - Hardhat → `test_patterns/hardhat.ts`, PoC filename: `POC.ts`
+>    - Ape/Brownie → `test_patterns/ape.py`, PoC filename: `POC.py`
+> 5. **Verify the test directory** — check build config for where tests live
+> 6. **Create finding list** with line offsets for the report file:
+>
+>    | ID  | Title | Severity | Validity | Affected File(s) | Report Lines  |
+>    | --- | ----- | -------- | -------- | ---------------- | ------------- |
+>    | ... | ...   | ...      | ...      | ...              | {start}-{end} |
+>
+> 7. **Derive report slug** — compact directory name from report filename and commit hash: `{description}-{commit_hash}` (e.g., `savant-ai-scan-1eb2f41d`)
+> 8. **Create output directory** `{test_dir}/audit_review/{report_slug}/findings/`
+> 9. **Initialize STATE.md** — write to `{test_dir}/audit_review/{report_slug}/STATE.md` using the [State Protocol](#state-protocol) format
+> 10. **Return** a single line: `SETUP_COMPLETE|{state_md_path}|{framework}|{test_pattern_path}|{poc_filename}|{total_findings}|{report_slug}`
+
+### After Setup Agent Returns
+
+The orchestrator:
+1. Parses the 1-line result to extract `state_md_path`, `framework`, `test_pattern_path`, `poc_filename`, `total_findings`, `report_slug`
+2. Requests write permissions for `{test_dir}/audit_review/{report_slug}/`
+3. Proceeds directly to Phase 1 — **do not re-read the audit report or explore the codebase**
 
 ---
 
@@ -125,37 +144,72 @@ All session state lives on disk in `{test_dir}/audit_review/{report_slug}/STATE.
 
 ## Remaining Findings
 
-| ID  | Title | Severity | Report Lines |
-| --- | ----- | -------- | ------------ |
-| ... | ...   | ...      | ...          |
+| ID  | Title | Severity | Validity | Report Lines |
+| --- | ----- | -------- | -------- | ------------ |
+| ... | ...   | ...      | ...      | ...          |
 ```
 
-### Dispatch Loop — Rolling Pool
+### Dispatch Loop — Background Agents with Disk-Based State
 
-Maintain a **rolling pool of up to 3 concurrent agents**. Instead of dispatching fixed batches and waiting for all 3 to finish, dispatch replacements as agents complete:
+All 3 agents run in **background**. The orchestrator detects completion by reading `RESULT` files from disk — never by calling `TaskOutput` (which dumps agent transcripts into orchestrator context, causing context explosion).
+
+#### Dispatch Cycle
 
 1. **Read STATE.md** — get the current processed/remaining state
-2. **Fill the pool to 3** — dispatch agents for findings from Remaining (respecting grouping rules), constructing each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
+2. **Mark IN_PROGRESS** — for up to 3 findings from Remaining (respecting grouping rules), move them from the Remaining table to the Processed section with status `IN_PROGRESS`:
+   ```
+   {ID}|IN_PROGRESS|||||||dispatched
+   ```
+3. **Dispatch all 3 agents in background** (`run_in_background: true`) — construct each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
    - `{test_pattern_path}` → absolute path to the framework's test pattern file
-   - `{output_dir}` → `{test_dir}/audit_review/{report_slug}/{finding_id}/`
+   - `{output_dir}` → `{test_dir}/audit_review/{report_slug}/findings/{finding_id}/`
    - `{report_path}` → path to audit report
    - `{report_lines}` → line range for this finding
    - `{finding_id}` → the finding's ID
    - `{report_name}` → name of the audit report
    - `{poc_filename}` → PoC test filename for the detected framework (`POC.sol`, `POC.ts`, or `POC.py`)
    - `{processed_findings}` → pipe-delimited lines from STATE.md (for duplicate detection)
-3. **When any agent completes** — collect its 1-line result, update STATE.md immediately, then dispatch the next finding to refill the pool
-4. **Repeat** until Remaining is empty and all agents have returned
+4. **Poll for RESULT files** — periodically glob `findings/*/RESULT` to detect completions. Compare against IN_PROGRESS entries. When a RESULT file appears, read it (single pipe-delimited line), replace the IN_PROGRESS line in STATE.md with the result, and update counters.
+5. **Refill when 2+ complete** — when at least 2 of 3 agents have written RESULT files, dispatch the next batch of findings to refill slots to 3. Do not wait for all 3 — the slowest agent continues running while new agents start.
+6. **Repeat** until Remaining is empty and all RESULT files are collected.
 
-**Why rolling, not fixed batches:** A single complex finding (e.g., integration test with full complex setup) can take 6+ minutes while simpler library-level tests finish in 90 seconds. Fixed batches force the orchestrator to idle until the slowest agent completes. Rolling dispatch keeps all 3 slots occupied.
+#### Why This Architecture
 
-**Practical implementation:** If the orchestrator's tooling doesn't support waiting on individual agents (e.g., only blocking `TaskOutput` calls), fall back to fixed batches of 3 — but when a batch completes with mixed timing, note which findings were slow and avoid grouping multiple slow-looking findings (integration tests, liquidation flows) in the same batch.
+| Problem | Old Approach | New Approach |
+|---|---|---|
+| Context explosion | `TaskOutput` dumps full agent transcripts (compilation logs, bash progress) into orchestrator | Orchestrator reads 1-line RESULT files from disk |
+| Idle waiting | Fixed batches wait for slowest agent | Refill at 2/3 completion keeps slots occupied |
+| State loss on crash | Agent results only in memory until STATE.md update | RESULT files persist on disk immediately |
+| Concurrent writes | N/A | Each agent writes to its own `findings/{id}/RESULT` — no contention |
+
+#### RESULT File Polling
+
+```
+# Check which IN_PROGRESS findings have completed
+glob: findings/*/RESULT
+```
+
+Read each RESULT file (single line), match against IN_PROGRESS entries, update STATE.md. The orchestrator never calls `TaskOutput` — all state flows through disk.
 
 ### Grouping Rules
 
 - Findings touching the **same file** go in **different dispatch slots** (avoid conflicting writes)
 - Findings touching **different files** can share concurrent slots
 - Never exceed **3 concurrent agents**
+
+### Post-Batch Validation
+
+After collecting RESULT files for each batch, verify artifact completeness on disk:
+
+| Classification | Required Files |
+|---|---|
+| Confirmed / Confirmed (overstated) | `RESULT` AND `ISSUE.md` AND `POC.{ext}` |
+| Disputed | `RESULT` AND `DISPUTE.md` AND `POC.{ext}` |
+| Duplicate | `RESULT` AND `DUPLICATE.md` only (no PoC needed) |
+
+**Validation order:** Check `RESULT` first (agent completed), then markdown artifact (most important deliverable), then PoC file. Subagents are instructed to write markdown before PoC, so a missing PoC with a present ISSUE.md/DISPUTE.md is more recoverable than the reverse.
+
+For any missing artifact, append `MISSING:{filename}` to the finding's result line in STATE.md. If more than 2 findings in a batch have missing artifacts, investigate whether the subagent prompt template variables were filled correctly before continuing.
 
 ### Context Management
 
@@ -172,14 +226,16 @@ After all findings are processed, generate `{test_dir}/audit_review/{report_slug
 
 Read all result lines from STATE.md. For confirmed findings, read the ISSUE.md to get quality dimension scores.
 
+**Self-identified invalid findings:** If the audit report includes auditor validity labels (e.g., `Validity: Invalid`), findings the auditor self-identified as invalid are **excluded from the quality score** and listed in a separate section. These represent correct self-assessment and should not penalize audit quality. Add a `Self-identified invalid (correct)` row to the category table with the count, split the findings summary into scored and self-identified sections, and compute the score over only the scored findings.
+
 **Scorecard structure:**
 
 ```markdown
 # Audit Review Scorecard: {Report Name}
 
 **Commit:** {hash}
-**Total Findings:** {N}
-**Audit Quality Score: {XX.XX} / 100**
+**Total Findings:** {N} ({scored} scored, {self_invalid} self-identified invalid)
+**Audit Quality Score: {XX.XX} / 100** (scored findings only)
 
 | Category                        | Count | Percentage |
 | ------------------------------- | ----- | ---------- |
@@ -187,10 +243,12 @@ Read all result lines from STATE.md. For confirmed findings, read the ISSUE.md t
 | Confirmed (severity overstated) | X     | X%         |
 | Disputed                        | X     | X%         |
 | Duplicate                       | X     | X%         |
+| Self-identified invalid (correct)| X     | —          |
 
-## Findings Summary
+## Scored Findings Summary
 
 Sorted: Disputed first, then confirmed by assessed severity (Critical → Low).
+Only includes findings the auditor did not self-identify as invalid.
 
 | ID  | Title | Auditor Severity | Status | Assessed Severity | Finding Score | Validity Confidence | Severity Confidence |
 | --- | ----- | ---------------- | ------ | ----------------- | ------------- | ------------------- | ------------------- |
@@ -200,7 +258,8 @@ Sorted: Disputed first, then confirmed by assessed severity (Critical → Low).
 
 Severity weights: Critical=8, High=4, Medium=2, Low=1, Info=0.
 Weight = max(auditor severity weight, assessed severity weight).
-Formula: contribution = (weight / total_weight) _ 100 _ (score / 5)
+Formula: contribution = (weight / total_weight) × 100 × (score / 5)
+Only scored findings are included — self-identified invalid findings are excluded.
 
 | ID        | Severity Weight | Share of 100 | Finding Score | Contribution |
 | --------- | --------------- | ------------ | ------------- | ------------ |
@@ -214,14 +273,16 @@ Formula: contribution = (weight / total_weight) _ 100 _ (score / 5)
 
 ```
 {test_dir}/audit_review/
-  {report_slug}/                    ← one directory per report (e.g., savant-core-v1/)
+  {report_slug}/                    ← one directory per report (e.g., savant-ai-scan-1eb2f41d/)
     STATE.md                        ← session state (orchestrator reads/writes)
     SCORECARD.md                    ← final scorecard (Phase 2)
-    {finding_id}/
-      POC.{ext}                     ← confirmed findings only
-      ISSUE.md                      ← confirmed findings
-      DISPUTE.md                    ← disputed findings
-      DUPLICATE.md                  ← duplicate findings
+    findings/
+      {finding_id}/
+        RESULT                      ← 1-line completion signal (agent writes, orchestrator reads)
+        POC.{ext}                   ← confirmed AND disputed findings (NOT duplicates)
+        ISSUE.md                    ← confirmed findings
+        DISPUTE.md                  ← disputed findings
+        DUPLICATE.md                ← duplicate findings (no POC needed)
 ```
 
 ---
@@ -237,6 +298,13 @@ Formula: contribution = (weight / total_weight) _ 100 _ (score / 5)
 | Batching multiple findings per agent                 | One finding per agent                                |
 | Not filling template variables in SUBAGENT_PROMPT.md | Check all `{variables}` are resolved before dispatch |
 | Skipping duplicate detection context                 | Always pass processed findings to agents             |
+| Running Phase 0 inline (context explosion)           | Phase 0 runs in a subagent; orchestrator stays empty |
+| Agents returning self-validation in response         | SUBAGENT_PROMPT enforces 1-line; validate on disk    |
+| Missing markdown artifacts after agent completes     | Post-batch validation checks files exist on disk     |
+| Duplicate findings writing unnecessary PoC tests     | SUBAGENT_PROMPT says "skip all remaining steps"      |
+| Calling TaskOutput to check agent status             | Read RESULT files from disk — TaskOutput dumps full transcripts into context |
+| Testing only the happy path                          | SUBAGENT_PROMPT requires testing auditor's exact scenario + all edges |
+| Disputing code quality issues as false positives     | Use Confirmed (Informational) for real quality issues with no security impact |
 
 ---
 

@@ -8,9 +8,10 @@ You are processing a single audit finding. Follow these instructions exactly.
 2. Read the affected source code referenced in the finding
 3. Read the MANDATORY test pattern file at `{test_pattern_path}` — your PoC MUST conform to one of the patterns in this file
 4. Classify the finding (Duplicate / Confirmed / Disputed)
-5. Write a PoC test OR dispute evidence
-6. Save artifacts to `{output_dir}`
-7. Return a 1-line summary
+5. **Save the markdown artifact FIRST** (ISSUE.md, DISPUTE.md, or DUPLICATE.md) to `{output_dir}` — this is the most important deliverable
+6. Write a PoC test to `{output_dir}` (skip for duplicates)
+7. Save a `RESULT` file to `{output_dir}/RESULT` containing your 1-line summary
+8. Return the same 1-line summary
 
 ## Duplicate Detection
 
@@ -20,7 +21,7 @@ You are processing a single audit finding. Follow these instructions exactly.
 {processed_findings}
 ```
 
-If this finding has the same root cause, code path, and vulnerability as one listed above, classify as Duplicate — save DUPLICATE.md and return the summary line. Skip all remaining steps.
+If this finding has the same root cause, code path, and vulnerability as one listed above, classify as Duplicate — save DUPLICATE.md and return the summary line. **Do NOT write a PoC test for duplicates.** Skip all remaining steps immediately after saving DUPLICATE.md.
 
 ## Writing the PoC
 
@@ -60,6 +61,21 @@ For **disputed findings**, write a direct test (no two-layer wrapper) that asser
 ### Exercise, Don't Emulate
 
 Call the system through its public entry points. Never copy internal logic into the test. If the vulnerability is in a library, reach it through the contract that uses it.
+
+### Test the Auditor's Exact Scenario
+
+**Critical:** Your PoC MUST test the specific scenario the auditor describes, not just the common/happy path.
+
+- If the auditor claims `receiver != owner` breaks, test with `receiver != owner` — not just self-calls
+- If the auditor claims a specific parameter combination triggers the bug, use those parameters
+- If the auditor describes a multi-step attack (e.g., swap → liquidate → withdraw), reproduce that exact sequence
+
+**Test all edges, not just one.** A single passing test on the happy path does not disprove a finding. For each finding, identify:
+1. The **exact scenario** the auditor describes — test this first
+2. The **happy path** (common usage) — test this to establish baseline
+3. **Boundary conditions** relevant to the claim (zero values, max values, equal vs unequal parameters)
+
+If the auditor's exact scenario passes correctly, THEN you can dispute. If you only test the happy path and it works, that proves nothing about the edge case the auditor identified.
 
 ### Fit the Codebase
 
@@ -176,9 +192,9 @@ Save to `{output_dir}/DUPLICATE.md`:
 {Why this is a duplicate — same root cause, same code path}
 ```
 
-## Response Format
+## RESULT File (MANDATORY)
 
-After saving all artifacts to disk, return ONLY this single line:
+After saving your markdown artifact and PoC, write a `RESULT` file to `{output_dir}/RESULT` containing **EXACTLY ONE LINE** in this format:
 
 ```
 {finding_id}|{Status}|{Auditor Severity}|{Assessed Severity}|{Score}|{Validity Conf}|{Severity Conf}|{One-line summary}
@@ -188,7 +204,18 @@ Status values: `Confirmed`, `Confirmed (overstated)`, `Disputed`, `Duplicate`
 
 For duplicates, append `|dup:{original_id}`.
 
-**DO NOT** return test code, full artifact content, or multi-line responses. Everything goes to disk. Only the summary line comes back.
+The orchestrator reads this file to detect completion — if it's missing, your work is invisible.
+
+## Response Format (MANDATORY — Read Carefully)
+
+After saving all artifacts to disk (including the RESULT file), return the same single line from your RESULT file.
+
+**HARD RULES:**
+- Your entire response must be a single pipe-delimited line — no preamble, no explanation, no self-validation output
+- Do NOT include self-validation results, check lists, or reasoning in your response
+- Do NOT return test code, full artifact content, or multi-line responses
+- Everything goes to disk. Only the summary line comes back.
+- If your response contains more than one line of text, you have violated this rule
 
 ---
 
@@ -208,6 +235,10 @@ If you saved a file with a different name (e.g., `EVIDENCE.md`, `ANALYSIS.md`, `
 **Check 2: PoC file has correct name (non-duplicates only)**
 
 For Confirmed and Disputed findings, `{poc_filename}` must exist in `{output_dir}`. If you saved the test file with a different name, rename it now.
+
+**Check 2b: RESULT file exists**
+
+Verify `{output_dir}/RESULT` exists and contains exactly one pipe-delimited line matching the response format. If missing, write it now.
 
 **Check 3: Artifact header matches template**
 

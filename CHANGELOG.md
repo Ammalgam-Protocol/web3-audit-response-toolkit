@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0] - 2026-02-10
+## [1.0.0] - 2026-02-11
 
 ### Added
 
@@ -16,18 +16,36 @@
 
 **Orchestration**
 - Report slug namespacing (`{description}-{commit_hash}`) — each report gets its own subdirectory under `audit_review/`, preventing artifact collisions across multiple reviews
-- Rolling pool dispatch model — refills agent slots as they complete instead of waiting for fixed batches, keeping all 3 slots occupied even when one finding takes much longer than others
+- Phase 0 runs in a subagent — keeps orchestrator context empty for Phase 1 dispatch
+- Disk-based RESULT file polling — agents write 1-line `RESULT` files, orchestrator reads from disk instead of calling `TaskOutput` (prevents context explosion from agent transcripts)
+- Refill-at-2/3 dispatch — when 2 of 3 background agents complete, refill slots immediately without waiting for the slowest agent
 - STATE.md protocol for crash-resilient session tracking across context windows
+- Post-batch artifact validation — checks RESULT, markdown artifact, and PoC file exist after each batch; logs `MISSING:{filename}` for incomplete agents
 - Duplicate detection via processed findings context passed to each subagent
 - Grouping rules to avoid file-level write conflicts between concurrent agents
 
 **Assessment**
 - Unified severity framework (SEVERITY_REFERENCE.md) synthesized from Sherlock, Cantina, Immunefi, OpenZeppelin, Trail of Bits, and Zellic
+- Disputed vs Confirmed (Informational) decision rule — disputed means the auditor's claim is factually wrong; confirmed informational means the behavior exists but has no security impact
+- Self-identified invalid findings excluded from quality score in scorecard
 - Multi-dimensional finding quality scoring (Summary Clarity, Reproduction Evidence, Fix Recommendation)
 - Independent severity assessment with validity and severity confidence ratings
 - Structured artifact templates (ISSUE.md, DISPUTE.md, DUPLICATE.md, SCORECARD.md)
 
+**Subagent Prompt**
+- "Test the auditor's exact scenario" mandate — PoC must reproduce the specific attack path described, not just the happy path
+- "Test all edges" requirement — happy path, auditor's scenario, and boundary conditions for each finding
+- Markdown-first artifact ordering — save ISSUE.md/DISPUTE.md before POC to protect the most important deliverable from crashes
+- RESULT file as mandatory completion signal — agents write to `{output_dir}/RESULT` before returning
+- Hardened response format — HARD RULES enforce single pipe-delimited line response, no preamble or self-validation output
+- RESULT file existence added to self-validation checklist (Check 2b)
+
 **Quality**
-- Rationalization guards table to prevent common skip/shortcut patterns
+- Rationalization guards for Phase 0 inline execution, happy-path-only testing, and disputing code quality issues
+- Common mistakes table entries for TaskOutput anti-pattern, happy-path testing, and informational classification
 - Quality checklist for review completion verification
 - Ban list for PoC tests (bare `vm.expectRevert`, console.log, `assertEq(bool, true)`)
+
+**Validation**
+- 5 audit reports reviewed (competition, manual audit, 3 AI scanners) producing 439 PoC tests
+- Cross-validation of 46 highest-severity findings confirmed reproducibility (84.19/100 re-review score)
