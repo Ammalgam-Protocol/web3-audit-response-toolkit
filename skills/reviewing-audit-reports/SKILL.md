@@ -156,11 +156,12 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
 #### Dispatch Cycle
 
 1. **Read STATE.md** — get the current processed/remaining state
-2. **Mark IN_PROGRESS** — for up to 3 findings from Remaining (respecting grouping rules), move them from the Remaining table to the Processed section with status `IN_PROGRESS`:
+2. **Count existing RESULT files** — run `ls findings/*/RESULT 2>/dev/null | wc -l` to establish baseline count before this batch
+3. **Mark IN_PROGRESS** — for up to 3 findings from Remaining (respecting grouping rules), move them from the Remaining table to the Processed section with status `IN_PROGRESS`:
    ```
    {ID}|IN_PROGRESS|||||||dispatched
    ```
-3. **Dispatch all 3 agents in background** (`run_in_background: true`) — construct each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
+4. **Dispatch all 3 agents in background** (`run_in_background: true`) — construct each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
    - `{test_pattern_path}` → absolute path to the framework's test pattern file
    - `{output_dir}` → `{test_dir}/audit_review/{report_slug}/findings/{finding_id}/`
    - `{report_path}` → path to audit report
@@ -169,9 +170,24 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
    - `{report_name}` → name of the audit report
    - `{poc_filename}` → PoC test filename for the detected framework (`POC.sol`, `POC.ts`, or `POC.py`)
    - `{processed_findings}` → pipe-delimited lines from STATE.md (for duplicate detection)
-4. **Poll for RESULT files** — periodically glob `findings/*/RESULT` to detect completions. Compare against IN_PROGRESS entries. When a RESULT file appears, read it (single pipe-delimited line), replace the IN_PROGRESS line in STATE.md with the result, and update counters.
-5. **Refill when 2+ complete** — when at least 2 of 3 agents have written RESULT files, dispatch the next batch of findings to refill slots to 3. Do not wait for all 3 — the slowest agent continues running while new agents start.
-6. **Repeat** until Remaining is empty and all RESULT files are collected.
+5. **Launch a background file watcher** (`run_in_background: true`) — a single Bash command that exits when 2+ new RESULT files appear:
+   ```bash
+   target=$((existing + 2))
+   while true; do
+     current=$(ls findings/*/RESULT 2>/dev/null | wc -l)
+     if [ "$current" -ge "$target" ]; then
+       echo "READY: $current results (target was $target)"
+       break
+     fi
+     sleep 30
+   done
+   ```
+   Replace `existing` with the actual baseline count. This needs **one** approval per batch, then runs silently.
+6. **Do bookkeeping while waiting** — prepare next batch's prompts from STATE.md, pre-create output directories with `mkdir -p`
+7. **Wait for watcher** — call `TaskOutput(watcher_task_id, block=true, timeout=600000)`. This blocks until 2+ agents complete. **No approval needed.**
+8. **Read new RESULT files** — Glob `findings/*/RESULT`, read each new one, match against IN_PROGRESS entries
+9. **Update STATE.md** — replace IN_PROGRESS lines with results, update Processed/Remaining counters
+10. **Refill and repeat** — dispatch next batch to refill slots to 3
 
 #### Why This Architecture
 
@@ -181,15 +197,13 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
 | Idle waiting | Fixed batches wait for slowest agent | Refill at 2/3 completion keeps slots occupied |
 | State loss on crash | Agent results only in memory until STATE.md update | RESULT files persist on disk immediately |
 | Concurrent writes | N/A | Each agent writes to its own `findings/{id}/RESULT` — no contention |
+| Approval-gated polling | Foreground `sleep && ls` needs per-command approval (10-15 per batch) | Single background watcher per batch (1 approval), checked via TaskOutput (0 approvals) |
 
-#### RESULT File Polling
+#### Background File Watcher
 
-```
-# Check which IN_PROGRESS findings have completed
-glob: findings/*/RESULT
-```
+Instead of foreground polling (which requires per-poll approval and inflates context), use a **single background bash command** per batch cycle. Launch it with `run_in_background: true` immediately after dispatching agents. Check with `TaskOutput` (no approval needed) after doing bookkeeping.
 
-Read each RESULT file (single line), match against IN_PROGRESS entries, update STATE.md. The orchestrator never calls `TaskOutput` — all state flows through disk.
+**Never use foreground `sleep` commands for polling.** Each foreground sleep requires manual approval and adds messages to context. The background watcher is invisible to both.
 
 ### Grouping Rules
 
@@ -303,6 +317,7 @@ Only scored findings are included — self-identified invalid findings are exclu
 | Missing markdown artifacts after agent completes     | Post-batch validation checks files exist on disk     |
 | Duplicate findings writing unnecessary PoC tests     | SUBAGENT_PROMPT says "skip all remaining steps"      |
 | Calling TaskOutput to check agent status             | Read RESULT files from disk — TaskOutput dumps full transcripts into context |
+| Using foreground sleep+poll for RESULT detection     | Launch a single background file watcher per batch; foreground polling requires per-command approval and inflates context |
 | Testing only the happy path                          | SUBAGENT_PROMPT requires testing auditor's exact scenario + all edges |
 | Disputing code quality issues as false positives     | Use Confirmed (Informational) for real quality issues with no security impact |
 
