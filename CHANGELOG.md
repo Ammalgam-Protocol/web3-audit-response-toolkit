@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.1.0] - 2026-02-25
+
+### Changed
+
+**Severity Framework**
+- Unified three competing severity frameworks (Cantina matrix, Sherlock thresholds, Immunefi privilege caps) into a single four-layer deterministic framework
+- Added step-by-step Decision Procedure (Steps 0-4) that produces exactly one severity per finding — eliminates ambiguity where the same finding could receive different severities depending on which section a subagent read
+- Replaced contradictory "Impact over Likelihood" vs "Impact × Likelihood Matrix" principles with five internally consistent principles anchored to the Decision Procedure
+- Promoted Impact × Likelihood Matrix to the single classification engine (Layer 1)
+- Extracted Sherlock dollar thresholds into standalone Impact Anchors table (Layer 2) with explicit High/Medium/Low definitions
+- Added Likelihood Definitions table (Layer 3) with concrete examples for High/Medium/Low
+- Restructured Immunefi privilege adjustments as Modifier 1 with trustless-protocol exception
+- Added Modifier 2: Cumulative Damage Elevation with three-condition test and worked example
+- Added Modifier 3: Protocol Continuity Check with three explicit conditions
+- Converted Quick Reference Table to summary view with "source of truth" disclaimer
+- Updated Severity Dispute Criteria to reference Decision Procedure steps
+
+**Subagent Integration**
+- Updated SUBAGENT_PROMPT.md to reference `{severity_reference_path}` and require subagents to follow the Decision Procedure
+- Added `{severity_reference_path}` template variable to Phase 1 dispatch variable list in SKILL.md
+
 ## [1.0.0] - 2026-02-11
 
 ### Added

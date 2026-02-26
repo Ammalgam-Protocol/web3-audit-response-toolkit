@@ -9,7 +9,7 @@ description: >
 license: MIT
 metadata:
   author: Ammalgam-Protocol
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Reviewing Web3 Audit Reports
@@ -163,6 +163,7 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
    ```
 4. **Dispatch all 3 agents in background** (`run_in_background: true`) — construct each prompt from [SUBAGENT_PROMPT.md](SUBAGENT_PROMPT.md) with template variables:
    - `{test_pattern_path}` → absolute path to the framework's test pattern file
+   - `{severity_reference_path}` → absolute path to SEVERITY_REFERENCE.md
    - `{output_dir}` → `{test_dir}/audit_review/{report_slug}/findings/{finding_id}/`
    - `{report_path}` → path to audit report
    - `{report_lines}` → line range for this finding

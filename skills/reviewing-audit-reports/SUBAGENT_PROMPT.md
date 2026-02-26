@@ -85,7 +85,7 @@ If the auditor's exact scenario passes correctly, THEN you can dispute. If you o
 
 ## Severity and Scoring
 
-For confirmed findings, assess severity independently: Critical, High, Medium, Low, or Informational. No hybrid labels.
+Read the severity reference at `{severity_reference_path}` and follow its Decision Procedure to assess severity. The procedure produces exactly one level: Critical, High, Medium, Low, or Informational. No hybrid labels. Document which step determined each classification in your Severity Assessment section.
 
 - **Base score**: 1 (valid) + 1 (severity matches auditor) = 0-2
 - **Quality dimensions** (each 0-3): Summary Clarity, Reproduction Evidence, Fix Recommendation
