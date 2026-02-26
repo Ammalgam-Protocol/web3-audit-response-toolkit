@@ -9,6 +9,24 @@ import {Test} from "forge-std/Test.sol";
  *   `vm.expectRevert("specific message")` or `vm.expectRevert(Error.selector)`
  * - `console.log` / `console2.log` / `emit log` — use assertEq with a message
  * - `assertEq(bool, true)` or `assertEq(bool, false)` — use assertGt, assertEq(uint, uint), etc.
+ *
+ * ENTRY POINT REQUIREMENT:
+ * The primary exercise action MUST call a public/external function on a deployed contract.
+ * Never test internal functions directly.
+ *
+ * BANNED — testing internals directly:
+ *   Library.someInternalFunction(craftedInputs);     // library call
+ *   customHarness.wrappedInternal(craftedInputs);    // standalone harness around internal
+ *   // ... pure arithmetic reproducing internal logic  // reimplemented math
+ *
+ * CORRECT — testing through entry points:
+ *   pair.liquidateHard(borrower, to, "");   // public entry point, reaches internals naturally
+ *   pair.swap(amount, 0, to, "");           // public entry point
+ *   pair.borrow(user, amount, 0, "");       // public entry point
+ *
+ * ACCEPTABLE — harness for setup/assertion only (NOT as primary exercise):
+ *   pair.exposed_resetTotalAssetsCached();  // setup helper
+ *   pair.exposed_getTickRange();            // read-only assertion
  */
 
 contract TEST_PATTERNS is Test {

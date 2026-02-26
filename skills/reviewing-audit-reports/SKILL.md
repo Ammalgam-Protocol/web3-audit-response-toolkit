@@ -56,6 +56,8 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 | "I'll run Phase 0 inline to keep it simple"         | Phase 0 reads 100KB+ reports + codebase | Phase 0 runs in a subagent; orchestrator starts empty |
 | "The happy path works, so the finding is wrong"     | Edge cases are where bugs hide          | Test the auditor's exact scenario, then all edges     |
 | "It's not a real bug, so I'll just dispute it"      | Code quality issues deserve recognition | Use Confirmed (Informational) — see SEVERITY_REFERENCE |
+| "The internal function IS the bug, so I'll test it directly" | Testing internals proves the function misbehaves, not that the bug is reachable through the contract | Route through the contract's public/external entry points |
+| "I can't reach the bug through entry points"        | That is evidence the bug may not be exploitable as claimed | Classify as Disputed (unreachable) if no entry point path exists |
 
 ---
 
@@ -321,6 +323,8 @@ Only scored findings are included — self-identified invalid findings are exclu
 | Using foreground sleep+poll for RESULT detection     | Launch a single background file watcher per batch; foreground polling requires per-command approval and inflates context |
 | Testing only the happy path                          | SUBAGENT_PROMPT requires testing auditor's exact scenario + all edges |
 | Disputing code quality issues as false positives     | Use Confirmed (Informational) for real quality issues with no security impact |
+| Testing internal functions directly (library calls, custom harnesses, reimplemented math) | SUBAGENT_PROMPT bans internal-direct testing; Check 6 enforces |
+| Using harness `exposed_` as primary exercise action  | `exposed_` functions are for setup/assertion only, not primary exercise |
 
 ---
 

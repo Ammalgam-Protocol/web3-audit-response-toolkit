@@ -46,6 +46,7 @@ For **disputed findings**, write a direct test (no two-layer wrapper) that asser
 | Approximate/tolerance assertions | Masks misunderstanding | Use exact equality; explain precision source if impossible |
 | Empty test bodies | Proves nothing | At least one assertion per test |
 | Reimplementing logic in test | Proves math, not exploitability | Call the system's public interface |
+| Testing internal functions directly | Proves the function misbehaves in isolation, not that the bug is reachable | Exercise through `public`/`external` entry points on a deployed contract |
 | Multiple assertions per exercise | Dilutes focus | One assertion per exercise function |
 | Vacuous boolean assertions (e.g., `assertEqual(x, true)`) | Hides actual values | Compare concrete values directly — see `{test_pattern_path}` |
 
@@ -60,7 +61,23 @@ For **disputed findings**, write a direct test (no two-layer wrapper) that asser
 
 ### Exercise, Don't Emulate
 
-Call the system through its public entry points. Never copy internal logic into the test. If the vulnerability is in a library, reach it through the contract that uses it.
+The primary action in every `exercise` function MUST call a `public` or `external` function on a deployed contract instance. Never test `internal` functions directly.
+
+**Why this matters:** An `internal` function can only be reached through the contract that uses it. If the contract's entry points enforce validation, bounds checking, or state constraints that prevent the problematic inputs from reaching the internal function, the bug is not exploitable. Testing the internal directly skips that validation and produces false confirmations.
+
+**Banned:**
+- Importing a library and calling `Library.fn()` directly with crafted inputs
+- Creating a standalone harness contract that wraps an internal function with its own storage
+- Reimplementing the function's math inline to show it overflows or underflows
+
+**Required:**
+- Call the contract's `public`/`external` functions: `pair.liquidate()`, `pair.swap()`, `pair.borrow()`, etc.
+- Use the project's test fixture to deploy and configure the contract
+- Reach the internal function naturally through the contract's call stack
+
+**Harness `exposed_` functions:** Acceptable for test setup (e.g., `exposed_resetTotalAssetsCached()`) and read-only assertions (e.g., `exposed_getTickRange()`). NOT acceptable as the primary exercise action.
+
+**Unreachable bugs:** If a bug in an internal function cannot be triggered through any `public`/`external` entry point, that is evidence the bug is not exploitable as claimed. Classify as Disputed with reason "vulnerability not reachable through contract entry points."
 
 ### Test the Auditor's Exact Scenario
 
@@ -266,6 +283,17 @@ Scan your PoC file for these violations (framework-specific — check `{test_pat
 - Vacuous boolean assertions (`assertEq(x, true)` or `expect(x).to.be.true`)
 
 If found, add `BAN:{description}` to your summary's validation notes. Do NOT re-write the PoC for ban violations — just log them.
+
+**Check 6: Entry point compliance**
+
+Verify that the primary action in your `exercise` function calls a `public` or `external` function on a deployed contract instance — not an `internal` function tested directly.
+
+Red flags:
+- Calling `Library.functionName(args)` where Library is imported from production code
+- Creating a standalone wrapper contract around an internal function
+- Pure arithmetic reproducing internal logic without any contract interaction
+
+If the primary exercise action does not go through a contract entry point: add `BAN:internal-direct L{line}` to validation notes. Attempt to rewrite through an entry point. If rewrite is impossible, reclassify as Disputed (unreachable).
 
 **Validation notes in summary**
 
