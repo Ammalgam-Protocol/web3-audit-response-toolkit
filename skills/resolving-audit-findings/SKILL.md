@@ -15,7 +15,15 @@ metadata:
 
 One confirmed finding. One fix. TDD all the way through.
 
-This skill is the companion to `reviewing-audit-reports`. The review skill validates findings and produces ISSUE.md + two-layer PoC tests. This skill converts those PoCs into regression tests and implements fixes using RED/GREEN/REFACTOR.
+This skill follows `reviewing-audit-reports` and `aggregating-audit-campaigns` in the pipeline. It accepts findings from either:
+- **Per-campaign paths**: `test/audit_review/{report_slug}/findings/{finding_id}/ISSUE.md`
+- **Aggregated paths**: `test/audit_review/cross-audit/issues/U{NN}/ISSUE.md`
+
+Both provide the same artifact pair (ISSUE.md + PoC) that this skill converts into regression tests and fixes using RED/GREEN/REFACTOR.
+
+```
+reviewing-audit-reports → aggregating-audit-campaigns → resolving-audit-findings
+```
 
 This skill is **language/framework agnostic** — it adapts to whatever smart contract testing framework and language the project uses.
 

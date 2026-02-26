@@ -11,12 +11,10 @@ A set of skills for the full audit response lifecycle: **review** findings with 
 ### Pipeline
 
 ```
-reviewing-audit-reports  →  resolving-audit-findings
-         ↘
-          aggregating-audit-campaigns
+reviewing-audit-reports → aggregating-audit-campaigns → resolving-audit-findings
 ```
 
-The review skill processes one report at a time. Run it for each campaign, then use the aggregation skill to combine all campaigns into a single deduplicated view with coverage analysis and auditor scoring.
+The review skill processes one report at a time. Run it for each campaign, then use the aggregation skill to deduplicate, score, and prioritize. Finally, use the resolve skill to fix findings one at a time using TDD — it accepts both per-campaign findings and aggregated unique issues (`U{NN}`).
 
 ## Install
 

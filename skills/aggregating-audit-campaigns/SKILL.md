@@ -14,7 +14,11 @@ metadata:
 
 Multiple audits, one truth. Deduplicate, visualize coverage, score auditors, optionally publish.
 
-This skill is the capstone of the web3-audit-response-toolkit. It consumes the per-campaign artifacts produced by `reviewing-audit-reports` and produces a single deduplicated view across all campaigns with competition-style auditor scoring.
+This skill sits between `reviewing-audit-reports` and `resolving-audit-findings` in the pipeline. It consumes the per-campaign artifacts produced by the review skill and produces a prioritized, deduplicated set of unique issues that the resolve skill can fix one at a time.
+
+```
+reviewing-audit-reports → aggregating-audit-campaigns → resolving-audit-findings
+```
 
 ## When to Use
 
@@ -406,6 +410,16 @@ Update STATE.md Phase 5 status to COMPLETE (or SKIPPED).
       ISSUE.md                    ← composite issue using original auditor text
       POC.{ext}                   ← primary PoC from best source finding
 ```
+
+### Compatibility with resolving-audit-findings
+
+Each `issues/U{NN}/` directory contains the same artifact pair (`ISSUE.md` + `POC.{ext}`) that `resolving-audit-findings` expects as input. To fix a finding after aggregation:
+
+```
+Fix finding U07 using the artifacts in test/audit_review/cross-audit/issues/U07/
+```
+
+The resolve skill will read `ISSUE.md` for context and convert the two-layer `POC.{ext}` into a failing regression test.
 
 ---
 
