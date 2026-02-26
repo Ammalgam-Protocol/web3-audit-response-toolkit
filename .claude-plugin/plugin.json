@@ -1,7 +1,7 @@
 {
   "name": "web3-audit-response-toolkit",
-  "version": "1.0.0",
-  "description": "Smart contract audit response toolkit — validate findings with PoC tests, then resolve confirmed vulnerabilities using TDD. Two skills: reviewing-audit-reports (validate) and resolving-audit-findings (fix).",
+  "version": "1.1.0",
+  "description": "Smart contract audit response toolkit — validate findings with PoC tests, resolve confirmed vulnerabilities using TDD, and aggregate multiple campaigns into a deduplicated coverage grid with competition-style scoring. Three skills: reviewing-audit-reports (validate), resolving-audit-findings (fix), and aggregating-audit-campaigns (aggregate).",
   "author": {
     "name": "Ammalgam Protocol",
     "url": "https://github.com/Ammalgam-Protocol"
@@ -17,6 +17,10 @@
     "vulnerability-validation",
     "audit-review",
     "audit-remediation",
+    "cross-audit-aggregation",
+    "deduplication",
+    "auditor-scoring",
+    "coverage-grid",
     "tdd",
     "solidity",
     "foundry",

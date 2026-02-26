@@ -1,11 +1,22 @@
 # Web3 Audit Response Toolkit
 
-A set of skills for the full audit response lifecycle: **review** findings with PoC tests, then **resolve** confirmed vulnerabilities using TDD.
+A set of skills for the full audit response lifecycle: **review** findings with PoC tests, **resolve** confirmed vulnerabilities using TDD, and **aggregate** multiple campaigns into a deduplicated view with competition-style scoring.
 
 | Skill | Purpose | Trigger |
 |-------|---------|---------|
 | `reviewing-audit-reports` | Validate findings, produce ISSUE.md/DISPUTE.md + PoC, grade audit | "Review the audit report..." |
 | `resolving-audit-findings` | Convert PoC to regression test, fix the bug via RED/GREEN/REFACTOR | "Fix finding CS-AMMALGAM-002..." |
+| `aggregating-audit-campaigns` | Deduplicate across campaigns, build coverage grid, score auditors | "Aggregate findings from all audit campaigns..." |
+
+### Pipeline
+
+```
+reviewing-audit-reports  →  resolving-audit-findings
+         ↘
+          aggregating-audit-campaigns
+```
+
+The review skill processes one report at a time. Run it for each campaign, then use the aggregation skill to combine all campaigns into a single deduplicated view with coverage analysis and auditor scoring.
 
 ## Install
 
@@ -53,6 +64,29 @@ The resolve skill picks up where review leaves off. It converts the two-layer Po
 6. Branch + commit (separate fix and refactor commits)
 7. GitHub issue + PR (optional, user approval)
 8. CI monitoring
+
+### Aggregating: Cross-Campaign Analysis
+
+```
+Aggregate findings from all audit campaigns in test/audit_review/
+```
+
+After reviewing multiple reports, the aggregation skill combines all confirmed findings into a single deduplicated set. It builds a coverage grid showing which auditors found what, scores auditors using competition-style formulas (severity x uniqueness x quality), and optionally publishes everything to GitHub as linked sub-issues.
+
+**Output:**
+```
+test/audit_review/cross-audit/
+  COVERAGE_GRID.md           # Severity grid + NxM coverage matrix + overlap
+  AUDITOR_SCORECARD.md       # Leaderboard + per-finding point allocation
+  DEDUP_GROUPS.md            # Cross-campaign duplicate groups with rationale
+  issues/U{NN}/ISSUE.md      # Deduplicated unique issues
+```
+
+**Key features:**
+- **Root-cause deduplication** — matches on affected function + root variable, not symptoms
+- **Competition scoring** — Sherlock/Cantina hybrid: `points = severity x uniqueness_factor(n) x quality`
+- **Local-first** — all artifacts are files on disk; GitHub publication is optional and prompted
+- **Re-dedup on addition** — re-runs full dedup whenever a campaign is added
 
 ## The Two-Layer Bridge
 

@@ -1,6 +1,27 @@
 # Changelog
 
-## [1.1.0] - 2026-02-25
+## [1.1.0] - 2026-02-26
+
+### Added
+
+**Cross-Audit Aggregation Skill**
+- `aggregating-audit-campaigns` skill: 6-phase cross-campaign workflow (Enumerate, Dedup, Generate, Grid, Score, Publish)
+- Root-cause deduplication algorithm weighting function (40%) + root variable (30%) + bug type (20%) + file (10%)
+- Dedup agent prompt (DEDUP_PROMPT.md) for 70-89% match score candidate review
+- Competition-style auditor scoring (SCORING_RULES.md) using Sherlock/Cantina hybrid formula
+- Severity points: Critical=20, High=10, Medium=3, Low=1, Info=0.25
+- Uniqueness premium: `0.9^(n-1)/n` — solo finders earn more than shared finders
+- Quality factor from per-finding ISSUE.md scores (default 1.0 if unavailable)
+- Coverage grid template with severity distribution, NxM coverage matrix, and overlap matrix
+- Auditor scorecard template with leaderboard, per-finding point allocation, and verification checklist
+- Local-first architecture: all artifacts as files on disk, GitHub publication optional and prompted
+- Re-dedup mandate: full dedup re-runs whenever a campaign is added
+- Rationalization guards for synthesized content, symptom-based merging, and approximate scoring
+
+**Validation**
+- Tested scoring system against 78 unique findings from 6 campaigns (88 finding-auditor associations)
+- All verification invariants pass: pot shares sum to 100%, per-row calculations verifiable
+- 10 cross-campaign duplicate groups correctly identified and scored
 
 ### Changed
 
