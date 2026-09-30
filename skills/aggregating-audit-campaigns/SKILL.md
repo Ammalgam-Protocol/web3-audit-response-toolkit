@@ -7,7 +7,7 @@ description: >
 license: MIT
 metadata:
   author: Ammalgam-Protocol
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Aggregating Audit Campaigns
@@ -102,13 +102,13 @@ Dispatch a single `general-purpose` agent with this task:
 >       - Affected files and functions
 >       - Quality score (from `Finding Score: X/5` field, default 5 if absent)
 >
-> 2. **Build normalized finding list** — Write to `{output_dir}/cross-audit/PARSED_FINDINGS.md`:
+> 2. **Build normalized finding list** — Write to `{output_dir}/PARSED_FINDINGS.md`:
 >    ```
 >    CAMPAIGN|FINDING_ID|TITLE|SEVERITY|AFFECTED_FILE|AFFECTED_FUNCTION|QUALITY_SCORE|ISSUE_MD_PATH|POC_PATH
 >    ```
 >    One line per confirmed finding across all campaigns.
 >
-> 3. **Initialize STATE.md** — Write to `{output_dir}/cross-audit/STATE.md`:
+> 3. **Initialize STATE.md** — Write to `{output_dir}/STATE.md`:
 >    ```markdown
 >    # Cross-Audit Aggregation State
 >
@@ -166,7 +166,12 @@ Three div-by-zero bugs in three different functions are **THREE separate bugs**.
 
 ### Dedup Agent Dispatch
 
-For candidate pairs (70-89%), dispatch `general-purpose` agents using [DEDUP_PROMPT.md](DEDUP_PROMPT.md) with template variables filled. Agents write results to `{output_dir}/cross-audit/dedup/DEDUP_RESULT_{finding_a}_{finding_b}`.
+For candidate pairs (70-89%), dispatch `general-purpose` agents using [DEDUP_PROMPT.md](DEDUP_PROMPT.md) with every template variable in that file filled — `{finding_a}`, `{finding_b}`, `{output_dir}` and the remaining finding fields. The path an agent writes to **must** be the one this skill polls, so both sides name it identically:
+
+- **Agent writes to:** `{output_dir}/dedup/DEDUP_RESULT_{finding_a}_{finding_b}` (`DEDUP_PROMPT.md` states this verbatim)
+- **This skill polls for:** `{output_dir}/dedup/DEDUP_RESULT_*`
+
+If the two ever disagree, every 70-89% decision is silently lost — the pair falls through to the auto-merge branch and merges on a guess. When editing either file, change both.
 
 ### Re-Dedup on Campaign Addition
 
@@ -187,7 +192,7 @@ After all pairwise comparisons, group findings by affected contract file and che
 
 ### Output
 
-Generate `{output_dir}/cross-audit/DEDUP_GROUPS.md`:
+Generate `{output_dir}/DEDUP_GROUPS.md`:
 
 ```markdown
 # Dedup Groups
@@ -230,13 +235,13 @@ After dedup, assign unique IDs (U01, U02, ...) to each deduplicated group or sol
    - Most detailed ISSUE.md (longest description)
    - Has a PoC file
    - Highest independent severity assessment
-2. **Generate composite ISSUE.md** at `{output_dir}/cross-audit/issues/U{NN}/ISSUE.md`:
+2. **Generate composite ISSUE.md** at `{output_dir}/issues/U{NN}/ISSUE.md`:
    - Title: `U{NN}: {Primary finding title}`
    - All source findings listed under `## Source Findings`
    - Primary ISSUE.md content as the body — **use original auditor text, never synthesize**
    - `## Auditor Descriptions` section with each campaign's description (for multi-finder issues)
    - Severity: Highest assessed severity across all source findings
-3. **Copy primary PoC file** to `{output_dir}/cross-audit/issues/U{NN}/POC.{ext}`
+3. **Copy primary PoC file** to `{output_dir}/issues/U{NN}/POC.{ext}`
 4. **Generate ISSUE_MAPPING.sh** — mapping of UIDs to source campaign files:
    ```
    UID|GH_NUM|TYPE|FINDING1_ISSUE|FINDING1_POC|FINDING2_ISSUE|FINDING2_POC|...
@@ -249,7 +254,7 @@ Update STATE.md Phase 2 status to COMPLETE.
 
 ## Phase 3: Coverage Grid & Severity Summary
 
-Build: `{output_dir}/cross-audit/COVERAGE_GRID.md`
+Build: `{output_dir}/COVERAGE_GRID.md`
 
 ### Severity Grid
 
@@ -302,7 +307,7 @@ Update STATE.md Phase 3 status to COMPLETE.
 
 ## Phase 4: Auditor Scoring (Competition-Style)
 
-Apply the formulas from [SCORING_RULES.md](SCORING_RULES.md) to all unique issues. Generate: `{output_dir}/cross-audit/AUDITOR_SCORECARD.md`
+Apply the formulas from [SCORING_RULES.md](SCORING_RULES.md) to all unique issues. Generate: `{output_dir}/AUDITOR_SCORECARD.md`
 
 ### Scorecard Contents
 
@@ -353,18 +358,34 @@ Update STATE.md Phase 4 status to COMPLETE.
 
 1. **Create parent issue** (if not provided):
    ```bash
-   gh issue create --repo {repo} --title "Cross-Audit Aggregation: {N} Unique Issues from {M} Campaigns" \
-     --body "{severity_grid + coverage_grid + leaderboard + overlap_matrix + key_insights}"
+   # Write the body to a file first, then pass it with --body-file.
+   # Never interpolate generated or auditor-supplied text directly into a
+   # double-quoted shell argument: `$()`, backticks and embedded quotes inside
+   # such text are evaluated by the shell before gh ever sees them.
+   gh issue create --repo "$REPO" \
+     --title "Cross-Audit Aggregation: ${N} Unique Issues from ${M} Campaigns" \
+     --body-file "$PARENT_BODY_FILE"
    ```
 
 2. **Create sub-issues** — dispatch parallel agents (batches of 5):
    For each unique issue U{NN}:
    a. Read `issues/U{NN}/ISSUE.md` for body content
-   b. Create issue:
+   b. Create issue. Auditor text is untrusted input: it is third-party prose
+      copied verbatim, so it may legitimately contain backticks, `$()` or quotes
+      that must not reach a shell. Materialise it into files and let `gh` read
+      the files, so no content is ever parsed as shell:
       ```bash
-      gh issue create --repo {repo} --title "U{NN}: {title}" --body "{body}" \
-        --label "audit-finding,severity: {sev}"
+      # {TITLE_FILE} and {BODY_FILE} are written by the agent from
+      # issues/U{NN}/ISSUE.md. `printf '%s'` avoids interpreting backslashes.
+      printf '%s' "U${NN}: $(cat "$TITLE_FILE")" > /tmp/issue_title.txt
+      cp "$BODY_FILE" /tmp/issue_body.txt
+      gh issue create --repo "$REPO" \
+        --title-file /tmp/issue_title.txt \
+        --body-file /tmp/issue_body.txt \
+        --label "audit-finding" --label "severity: ${sev}"
       ```
+      `--label` is repeated rather than comma-joined so a label value can never
+      be read as two labels.
    c. Link as sub-issue via GraphQL:
       ```graphql
       mutation { addSubIssue(input: { issueId: "{parent_node_id}", subIssueId: "{child_node_id}" }) { ... } }
@@ -373,7 +394,7 @@ Update STATE.md Phase 4 status to COMPLETE.
 
 3. **Update parent issue body** with final coverage grid (including issue links)
 
-4. **Log results** to `{output_dir}/cross-audit/CREATED_ISSUES.md`:
+4. **Log results** to `{output_dir}/CREATED_ISSUES.md`:
    ```markdown
    | Unique ID | GitHub Issue | Severity |
    |-----------|-------------|----------|
@@ -395,7 +416,7 @@ Update STATE.md Phase 5 status to COMPLETE (or SKIPPED).
 ## Output Directory Structure
 
 ```
-{output_dir}/cross-audit/
+{output_dir}/
   STATE.md                        ← session state (orchestrator reads/writes)
   PARSED_FINDINGS.md              ← normalized finding list from all campaigns
   DEDUP_GROUPS.md                 ← dedup results with groups and rationale

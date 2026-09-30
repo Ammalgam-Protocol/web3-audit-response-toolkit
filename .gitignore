@@ -1,2 +1,23 @@
+# OS noise
 .DS_Store
+
+# Local planning scratch
 docs/plans/
+
+# Audit artifacts produced when these skills run inside a target repository.
+#
+# These are embargoed by default: they contain unpatched vulnerability details,
+# PoC exploit tests, ISSUE.md impact write-ups and auditor scorecards. Phase 5 of
+# aggregating-audit-campaigns publishes findings to a public GitHub repository,
+# so the local copy should not be committed by accident before that step is
+# deliberately run. Ignore it here and remove the rule if you intend to commit
+# findings under embargo.
+test/audit_review/
+audit_review/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key

@@ -1,5 +1,86 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+**Data loss**
+- `reviewing-audit-reports` no longer runs `git stash` as its first autonomous
+  action. The setup agent now checks `git status --porcelain` and halts with
+  `SETUP_BLOCKED|dirty_worktree` if the tree is dirty, instead of silently
+  setting the user's uncommitted work aside and never restoring it. The
+  orchestrator handles the blocked result and asks the user to resolve their own
+  working tree.
+
+**Command injection**
+- `aggregating-audit-campaigns` Phase 5 no longer interpolates auditor-supplied
+  titles and bodies into double-quoted `gh issue create` arguments. Auditor text
+  is third-party prose copied verbatim and may contain backticks, `$()` or
+  quotes, all of which the shell would evaluate before `gh` saw them. Issue
+  bodies and titles are now written to files and passed with `--body-file` /
+  `--title-file`, and labels are passed as separate `--label` flags.
+
+**Path contracts**
+- `aggregating-audit-campaigns` wrote every artifact to
+  `{output_dir}/cross-audit/...` while `{output_dir}` already defaults to
+  `.../cross-audit/`, producing `cross-audit/cross-audit/`. Ten references fixed.
+- The dedup agent wrote `{output_dir}/DEDUP_RESULT` while the orchestrator polled
+  `{output_dir}/dedup/DEDUP_RESULT_*`, so every 70-89% decision was discarded and
+  the pair fell through to auto-merge. Both sides now name the same path.
+- `README.md` documented `test/audit_review/{finding_id}/`, omitting the
+  `{report_slug}/findings/` levels that all three skills actually use, so the
+  review → aggregate → resolve handoff silently found nothing.
+
+**Manifest and documentation consistency**
+- `marketplace.json` advertised "Two-skill toolkit" at v1.0.0 while
+  `plugin.json` shipped three skills at v1.1.0. Users saw the third skill only
+  after installing.
+- `README.md` stated severity weight `Low=0`; `reviewing-audit-reports` applies
+  `Low=1`. Two readers of this repo computed different audit quality scores.
+- `SCORING_RULES.md` claimed "a single Critical finding is worth more than six
+  Highs". At Critical=20 and High=10, six Highs score 60. The text now states
+  the actual threshold: a Critical ties two Highs and is outweighed by three.
+- `README.md` listed Truffle and Brownie as fully supported; no pattern files
+  exist for either and framework detection only branches on Foundry, Hardhat and
+  Ape. Both are now documented as pattern reuse, with the caveats.
+- `README.md` validation table: AI scanner B's Confirmed and Disputed columns
+  total 93%, not 100%. The residual is flagged as unexplained rather than
+  attributed to a category that was not recorded.
+- `README.md` efficacy figures (261 / 439 PoC tests, scorecard values) now
+  carry an explicit provenance note: no PoC sources or scorecards are committed
+  to this repository, so the numbers are the author's measurements and not
+  reproducible from the repo alone.
+- `aggregating-audit-campaigns` frontmatter declared `1.0.0` while shipping in
+  the 1.1.0 release.
+- Fixed dead anchor `#phase-0-setup` → `#phase-0-setup-subagent`.
+- `reviewing-audit-reports` referenced a `differential-review` skill that this
+  plugin does not ship; replaced with a description of the actual boundary.
+- `resolving-audit-findings` marked `superpowers:writing-plans` and
+  `superpowers:verification-before-completion` as **REQUIRED SUB-SKILL**, gating
+  Phase 1 and the GREEN verification on a plugin that is not a dependency here.
+  Both are now optional, with the equivalent steps spelled out for when the
+  `superpowers` plugin is absent.
+
+### Changed
+- Banned-pattern (`BAN:`) findings are no longer pre-authorised as
+  "acceptable" by the orchestrator's checklist. They must be surfaced and
+  explicitly waived by the user.
+- GitHub-issue publication guidance no longer frames reduced approval prompts as
+  a goal. The rationale is restated in terms of round-trips and context cost,
+  and the watcher is documented as writing to the session transcript rather than
+  running invisibly.
+- `.gitignore` now covers `test/audit_review/`. Those artifacts contain
+  unpatched vulnerability details and PoC exploit tests, and Phase 5 publishes
+  findings publicly, so the local copy should not be committed by accident.
+
+### Added
+- `scripts/verify_plugin_consistency.cjs` (`npm run verify`) — fails on manifest
+  parse errors, plugin/marketplace version and skill-count drift, a skill whose
+  frontmatter version disagrees with its newest CHANGELOG entry, severity-weight
+  drift between README and the skills, dead relative links, and dead in-document
+  anchors. These are all invisible in Markdown review but break the skills at
+  runtime or mislead the reader.
+
 ## [1.1.0] - 2026-02-26
 
 ### Added

@@ -70,11 +70,13 @@ Ask yourself:
 
 ### Step 6: Write Result
 
-Write a single line to `{output_dir}/DEDUP_RESULT`:
+Write a single line to `{output_dir}/dedup/DEDUP_RESULT_{finding_a}_{finding_b}`:
 
 ```
 {finding_a_id}|{finding_b_id}|{MERGE|RELATED|DISTINCT}|{one-line rationale}
 ```
+
+The path must be exactly this. The orchestrator polls `dedup/DEDUP_RESULT_*` and ignores anything written elsewhere, so a mismatched filename means the verdict is discarded and the pair is auto-merged on a guess.
 
 **Examples:**
 ```

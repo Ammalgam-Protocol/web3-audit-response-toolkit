@@ -1,0 +1,15 @@
+{
+  "name": "web3-audit-response-toolkit",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Smart contract audit response toolkit — validate findings with PoC tests, resolve confirmed vulnerabilities using TDD, and aggregate multiple campaigns into a deduplicated coverage grid with competition-style scoring.",
+  "license": "MIT",
+  "author": "Ammalgam-Protocol",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ammalgam-Protocol/web3-audit-response-toolkit"
+  },
+  "scripts": {
+    "verify": "node scripts/verify_plugin_consistency.cjs"
+  }
+}

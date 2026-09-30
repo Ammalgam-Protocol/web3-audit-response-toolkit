@@ -5,15 +5,15 @@
     "email": "security@ammalgam.com"
   },
   "metadata": {
-    "description": "Smart contract audit response toolkit — validate findings with PoC tests, then resolve confirmed vulnerabilities using TDD. Review and resolve in one plugin.",
-    "version": "1.0.0"
+    "description": "Smart contract audit response toolkit — validate findings with PoC tests, resolve confirmed vulnerabilities using TDD, and aggregate multiple campaigns into a deduplicated coverage grid with competition-style scoring. Review, resolve and aggregate in one plugin.",
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "web3-audit-response-toolkit",
       "source": ".",
-      "description": "Two-skill toolkit for smart contract audit response: (1) reviewing-audit-reports validates findings with PoC tests and grades audit quality, (2) resolving-audit-findings converts confirmed PoCs into regression tests and implements fixes using TDD.",
-      "version": "1.0.0",
+      "description": "Three-skill toolkit for smart contract audit response: (1) reviewing-audit-reports validates findings with PoC tests and grades audit quality, (2) resolving-audit-findings converts confirmed PoCs into regression tests and implements fixes using TDD, (3) aggregating-audit-campaigns deduplicates findings across campaigns and scores auditors with competition-style formulas.",
+      "version": "1.1.0",
       "author": { "name": "Ammalgam Protocol" },
       "license": "MIT",
       "keywords": [
@@ -23,6 +23,9 @@
         "proof-of-concept",
         "false-positive-detection",
         "audit-remediation",
+        "cross-audit-aggregation",
+        "deduplication",
+        "auditor-scoring",
         "tdd",
         "web3-security"
       ],

@@ -27,13 +27,15 @@ This skill orchestrates auditing review sessions. Subagents do the per-finding w
 ## When NOT to Use
 
 - Implementing fixes for findings (use `resolving-audit-findings`)
-- Initial security review without an existing report (use `differential-review`)
+- Combining several campaigns into one deduplicated set (use `aggregating-audit-campaigns`)
+- Initial security review with no existing audit report — this skill requires a
+  third-party report to validate and has no discovery mode of its own
 - Code quality or gas optimization review
 
 ## Contents
 
 - [Inputs](#inputs) / [Scope](#scope)
-- [Phase 0: Setup](#phase-0-setup)
+- [Phase 0: Setup](#phase-0-setup-subagent)
 - [Phase 1: Dispatch and Track](#phase-1-dispatch-and-track) — batching, STATE.md protocol
 - [Phase 2: Final Scorecard](#phase-2-final-scorecard)
 - [Subagent Prompt](SUBAGENT_PROMPT.md) — passed verbatim to each agent
@@ -92,28 +94,39 @@ Dispatch a single `general-purpose` agent with this task:
 
 > You are the setup agent for an audit review session. Perform ALL of the following steps, save outputs to disk, and return a 1-line summary.
 >
-> 1. **Checkout audited commit**: `git stash && git checkout {commit_hash}`
-> 2. **Read the full audit report** at `{report_path}`
-> 3. **Discover the testing stack** — detect framework, existing test patterns, shared fixtures, build commands. Dispatch up to **2 Explore agents in parallel**: one for source structure + contract architecture, one for test stack + existing fixtures.
-> 4. **Select the test pattern file and PoC filename** — match the project's framework:
+> 1. **Verify the working tree is clean** — run `git status --porcelain`. If it prints
+>    anything, STOP and return `SETUP_BLOCKED|dirty_worktree|<n> changed paths`. Do not
+>    discard the user's uncommitted work; it is not this skill's to discard.
+> 2. **Checkout audited commit** — only on a clean tree: `git checkout {commit_hash}`.
+>    Do not run `git stash`: stashing silently moves the user's uncommitted work aside
+>    and this skill never restores it. If the tree is dirty, step 1 already halted.
+> 3. **Read the full audit report** at `{report_path}`
+> 4. **Discover the testing stack** — detect framework, existing test patterns, shared fixtures, build commands. Dispatch up to **2 Explore agents in parallel**: one for source structure + contract architecture, one for test stack + existing fixtures.
+> 5. **Select the test pattern file and PoC filename** — match the project's framework:
 >    - Foundry/Forge → `test_patterns/foundry.sol`, PoC filename: `POC.sol`
 >    - Hardhat → `test_patterns/hardhat.ts`, PoC filename: `POC.ts`
->    - Ape/Brownie → `test_patterns/ape.py`, PoC filename: `POC.py`
-> 5. **Verify the test directory** — check build config for where tests live
-> 6. **Create finding list** with line offsets for the report file:
+>    - Ape → `test_patterns/ape.py`, PoC filename: `POC.py`
+>    (Brownie is detected as Ape — both are Python/pytest projects. There is no separate
+>    Brownie pattern file; see the support matrix in the README.)
+> 6. **Verify the test directory** — check build config for where tests live
+> 7. **Create finding list** with line offsets for the report file:
 >
 >    | ID  | Title | Severity | Validity | Affected File(s) | Report Lines  |
 >    | --- | ----- | -------- | -------- | ---------------- | ------------- |
 >    | ... | ...   | ...      | ...      | ...              | {start}-{end} |
 >
-> 7. **Derive report slug** — compact directory name from report filename and commit hash: `{description}-{commit_hash}` (e.g., `savant-ai-scan-1eb2f41d`)
-> 8. **Create output directory** `{test_dir}/audit_review/{report_slug}/findings/`
-> 9. **Initialize STATE.md** — write to `{test_dir}/audit_review/{report_slug}/STATE.md` using the [State Protocol](#state-protocol) format
-> 10. **Return** a single line: `SETUP_COMPLETE|{state_md_path}|{framework}|{test_pattern_path}|{poc_filename}|{total_findings}|{report_slug}`
+> 8. **Derive report slug** — compact directory name from report filename and commit hash: `{description}-{commit_hash}` (e.g., `savant-ai-scan-1eb2f41d`)
+> 9. **Create output directory** `{test_dir}/audit_review/{report_slug}/findings/`
+> 10. **Initialize STATE.md** — write to `{test_dir}/audit_review/{report_slug}/STATE.md` using the [State Protocol](#state-protocol) format
+> 11. **Return** a single line: `SETUP_COMPLETE|{state_md_path}|{framework}|{test_pattern_path}|{poc_filename}|{total_findings}|{report_slug}`
 
 ### After Setup Agent Returns
 
 The orchestrator:
+0. If the result starts with `SETUP_BLOCKED|dirty_worktree`, **stop**. Report to the user
+   that the target repository has uncommitted changes and that the skill will not
+   discard them. Ask the user to commit, stash, or abandon their changes themselves,
+   then re-run. Do not attempt to clean the tree on the user's behalf.
 1. Parses the 1-line result to extract `state_md_path`, `framework`, `test_pattern_path`, `poc_filename`, `total_findings`, `report_slug`
 2. Requests write permissions for `{test_dir}/audit_review/{report_slug}/`
 3. Proceeds directly to Phase 1 — **do not re-read the audit report or explore the codebase**
@@ -185,9 +198,9 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
      sleep 30
    done
    ```
-   Replace `existing` with the actual baseline count. This needs **one** approval per batch, then runs silently.
+   Replace `existing` with the actual baseline count. This is **one** command per batch, and it reports progress to the same transcript the user can read.
 6. **Do bookkeeping while waiting** — prepare next batch's prompts from STATE.md, pre-create output directories with `mkdir -p`
-7. **Wait for watcher** — call `TaskOutput(watcher_task_id, block=true, timeout=600000)`. This blocks until 2+ agents complete. **No approval needed.**
+7. **Wait for watcher** — call `TaskOutput(watcher_task_id, block=true, timeout=600000)`. This blocks until 2+ agents complete and does not itself require a tool permission.
 8. **Read new RESULT files** — Glob `findings/*/RESULT`, read each new one, match against IN_PROGRESS entries
 9. **Update STATE.md** — replace IN_PROGRESS lines with results, update Processed/Remaining counters
 10. **Refill and repeat** — dispatch next batch to refill slots to 3
@@ -200,13 +213,13 @@ All 3 agents run in **background**. The orchestrator detects completion by readi
 | Idle waiting | Fixed batches wait for slowest agent | Refill at 2/3 completion keeps slots occupied |
 | State loss on crash | Agent results only in memory until STATE.md update | RESULT files persist on disk immediately |
 | Concurrent writes | N/A | Each agent writes to its own `findings/{id}/RESULT` — no contention |
-| Approval-gated polling | Foreground `sleep && ls` needs per-command approval (10-15 per batch) | Single background watcher per batch (1 approval), checked via TaskOutput (0 approvals) |
+| Polling cost | Foreground `sleep && ls` issues one command per poll and adds a message to context each time | One background watcher per batch, read once via `TaskOutput` |
 
 #### Background File Watcher
 
-Instead of foreground polling (which requires per-poll approval and inflates context), use a **single background bash command** per batch cycle. Launch it with `run_in_background: true` immediately after dispatching agents. Check with `TaskOutput` (no approval needed) after doing bookkeeping.
+Instead of foreground polling (which issues a command and a context message per poll), use a **single background bash command** per batch cycle. Launch it with `run_in_background: true` immediately after dispatching agents. Read it with `TaskOutput` after doing bookkeeping.
 
-**Never use foreground `sleep` commands for polling.** Each foreground sleep requires manual approval and adds messages to context. The background watcher is invisible to both.
+**Never use foreground `sleep` for polling.** A foreground sleep costs a round-trip and a context message per poll. The background watcher does the same work in one call, and its output is still recorded in the session transcript — nothing about it is hidden from the user.
 
 ### Grouping Rules
 
@@ -341,4 +354,6 @@ Before completing the review:
 - [ ] Audit Quality Score computed correctly
 - [ ] All agent summaries include self-validation results (no agents skipped it)
 - [ ] No agents reported artifact naming fixes (if any did, investigate prompt clarity)
-- [ ] Ban violations reviewed (acceptable or noted for skill improvement)
+- [ ] No `BAN:` entries outstanding, or each one is explicitly waived by the user with a stated reason
+      (a banned pattern is a failure of this toolkit's own PoC standard — do not sign it off as
+      "acceptable" on your own initiative; surface it and let the user decide)

@@ -282,7 +282,7 @@ Scan your PoC file for these violations (framework-specific — check `{test_pat
 - Console/print logging instead of assertions
 - Vacuous boolean assertions (`assertEq(x, true)` or `expect(x).to.be.true`)
 
-If found, add `BAN:{description}` to your summary's validation notes. Do NOT re-write the PoC for ban violations — just log them.
+If found, add `BAN:{description}` to your summary's validation notes. Do not silently rewrite the PoC to hide the violation — the orchestrator must see it and decide whether to waive it.
 
 **Check 6: Entry point compliance**
 

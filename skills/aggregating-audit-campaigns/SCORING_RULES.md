@@ -16,7 +16,9 @@ Every calculation is transparent and verifiable. Auditors can check the math.
 | Low | 1 | Minor issues, best practices |
 | Informational | 0.25 | Code quality, documentation, design suggestions |
 
-Follows Cantina's 20/10/3 nonlinear scale. The exponential ratio reflects the exponential difference in exploit value between severity levels. A single Critical finding is worth more than six Highs — this matches real-world economics where critical vulnerabilities have outsized impact.
+Follows Cantina's 20/10/3 nonlinear scale. The exponential ratio reflects the exponential difference in exploit value between severity levels.
+
+Be precise about what this ratio actually buys, because the arithmetic is easy to over-read. At these weights a single Critical (20 pts) beats one High (10), one Medium (3) or any combination totalling under 20 — but it **ties** two Highs (2 × 10 = 20) and is **outweighed** by three or more Highs (≥ 30). So three High findings score a campaign higher than one Critical does. A Critical still dominates in practice because it is far rarer than a set of Highs, and because the uniqueness factor (§Uniqueness Premium) applies on top: a Critical found by one auditor scores `20 × 1.000`, whereas three Highs each found by a different auditor are diluted by `0.9^(n-1)/n`. Do not present a Critical as automatically outranking any number of Highs.
 
 **Severity source:** Use the canonical assessed severity from DEDUP_GROUPS.md, not individual auditor assessments. When auditors disagree on severity, the independently-assessed severity from the review process takes precedence.
 

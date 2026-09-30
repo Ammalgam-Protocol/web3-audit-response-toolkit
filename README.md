@@ -39,16 +39,22 @@ The review skill validates every finding with a PoC test, classifies each as Con
 **Output:**
 ```
 test/audit_review/
-  SCORECARD.md
-  {finding_id}/
-    POC.sol              # Two-layer PoC (passes on vulnerable code)
-    ISSUE.md or DISPUTE.md
+  {report_slug}/
+    STATE.md
+    SCORECARD.md
+    findings/
+      {finding_id}/
+        POC.sol              # Two-layer PoC (passes on vulnerable code)
+        ISSUE.md or DISPUTE.md
+        RESULT               # One-line machine-readable verdict
 ```
+
+`{report_slug}` is `{description}-{commit_hash}` (e.g. `savant-ai-scan-1eb2f41d`). It scopes a session to one report at one commit, so a second report against the same repository cannot overwrite the first one's artifacts. Both this path and the `cross-audit/` path below are what the aggregation skill scans for campaigns.
 
 ### Resolving: Fix Confirmed Findings
 
 ```
-Fix finding CS-AMMALGAM-002 using the PoC in test/audit_review/CS-AMMALGAM-002/
+Fix finding CS-AMMALGAM-002 using the PoC in test/audit_review/savant-ai-scan-1eb2f41d/findings/CS-AMMALGAM-002/
 ```
 
 The resolve skill picks up where review leaves off. It converts the two-layer PoC into a failing regression test (RED), implements the minimal fix (GREEN), refactors if needed, and creates a structured bugfix branch with separate commits for fix and cleanup.
@@ -105,13 +111,27 @@ function testValidateFinding() public {
 
 ## Supported Frameworks
 
-| Framework     | Language   | Review Pattern                  | Fix Pattern    |
-| ------------- | ---------- | ------------------------------- | -------------- |
-| Foundry/Forge | Solidity   | `vm.expectRevert` + `assertEq` | Remove wrapper |
-| Hardhat       | TypeScript | `rejectedWith` + `expect`      | Remove wrapper |
-| Truffle       | TypeScript | `rejectedWith` + `expect`      | Remove wrapper |
-| Ape           | Python     | `pytest.raises` + `assert`     | Remove wrapper |
-| Brownie       | Python     | `pytest.raises` + `assert`     | Remove wrapper |
+| Framework     | Language   | Review Pattern                  | Fix Pattern    | Pattern file            |
+| ------------- | ---------- | ------------------------------- | -------------- | ----------------------- |
+| Foundry/Forge | Solidity   | `vm.expectRevert` + `assertEq` | Remove wrapper | `foundry.sol`           |
+| Hardhat       | TypeScript | `rejectedWith` + `expect`      | Remove wrapper | `hardhat.ts`            |
+| Ape           | Python     | `pytest.raises` + `assert`     | Remove wrapper | `ape.py`                |
+| Brownie       | Python     | `pytest.raises` + `assert`     | Remove wrapper | `ape.py` (see below)    |
+| Truffle       | JavaScript | `rejectedWith` + `expect`      | Remove wrapper | `hardhat.ts` (see below)|
+
+Two caveats on the last two rows:
+
+- **Brownie** is detected as Ape. Both are Python/pytest projects and the PoC
+  structure is identical, so the Ape pattern is reused unchanged.
+- **Truffle** is detected as Hardhat and reuses the Hardhat pattern. Truffle's
+  `truffle-assertions` and its deployment model differ from Hardhat, so
+  expect-style rejections may need adjusting. The framework detector in
+  `reviewing-audit-reports` only branches on Foundry, Hardhat and Ape, so a
+  Truffle repository is classified as Hardhat by elimination.
+
+Truffle and Brownie are supported by pattern reuse rather than by first-class
+detection or dedicated files. If you use one regularly, the highest-value
+contribution to this toolkit is a real pattern file plus a detection branch.
 
 ## Why I Built This
 
@@ -142,6 +162,15 @@ The review skill was validated against three completed smart contract audit repo
 | AI scanner C (beta)†|    11%    |        2.5%       |        8.5%         |  77.5%   |
 
 †80 findings scored. 97 additional findings were self-identified as invalid by the auditor — all correctly identified (0 confirmed vulnerabilities). 11% of scored findings were duplicates. Audit quality score: 6.73/100.
+
+‡For AI scanner B the Confirmed and Disputed columns total 93%, not 100%. The residual 7% is not accounted for in the source data and is left unexplained here rather than attributed to a category that was not recorded.
+
+> **Provenance of the numbers above.** These figures come from review runs the
+> author performed outside this repository. No PoC sources, scorecards, fixtures
+> or per-run artifacts are committed here, so the counts cannot be reproduced
+> from this repository alone. They are reported as the author's own measurements,
+> not as a verified property of the code in this repo. Anyone relying on them
+> should re-run the skills against a report with known ground truth.
 
 ### Key Observations
 
@@ -176,7 +205,7 @@ Each confirmed finding is scored 0-5:
 - **Base (0-2):** 1 point if valid + 1 point if severity matches
 - **Quality bonus (0-3 avg):** Summary Clarity + Reproduction Evidence + Fix Recommendation
 
-Disputed findings (false positives) score 0. The final scorecard weights findings by severity (Critical=8, High=4, Medium=2, Low/Info=0) to produce an overall audit quality score out of 100.
+Disputed findings (false positives) score 0. The final scorecard weights findings by severity (Critical=8, High=4, Medium=2, Low=1, Info=0) to produce an overall audit quality score out of 100. These weights are the ones `reviewing-audit-reports` applies; keep the two in sync if you change either.
 
 ## Cross-Platform
 

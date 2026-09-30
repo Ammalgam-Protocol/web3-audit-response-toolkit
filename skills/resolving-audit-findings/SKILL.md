@@ -74,7 +74,7 @@ If any prerequisite is missing, **STOP** and direct the user to run `reviewing-a
 | --- | --- | --- |
 | "The auditor's recommended fix looks right, I'll just apply it" | Auditor fixes are suggestions, not verified code | Analyze independently; auditor fix is one input, not the answer |
 | "I'll skip the RED step since I know the test should fail" | RED proves the test actually catches the bug | Run the test and verify the failure message matches |
-| "The fix is obvious, I don't need a plan" | Obvious fixes break adjacent invariants | Write the plan; use `superpowers:writing-plans` |
+| "The fix is obvious, I don't need a plan" | Obvious fixes break adjacent invariants | Write the plan; use `superpowers:writing-plans` if that plugin is installed, otherwise write it directly |
 | "I'll fix multiple findings while I'm in this file" | Cross-finding fixes create tangled commits | One finding per session; one fix per branch |
 | "I'll refactor while implementing the fix" | Refactoring during fix obscures what changed | Separate commits: fix first, refactor second |
 | "The full test suite is slow, I'll just run the PoC" | Fix may break other invariants | Full suite must pass at GREEN and after REFACTOR |
@@ -159,7 +159,11 @@ This phase is **read-only**. Do not modify any files.
 
 ## Phase 1: Plan the Fix (MANUAL CHECKPOINT)
 
-**REQUIRED SUB-SKILL:** `superpowers:writing-plans`
+**Sub-skill:** if the `superpowers` plugin is installed, use
+`superpowers:writing-plans` to produce the plan. That plugin is **not** a
+dependency of this one — installing this toolkit does not provide it. If it is
+unavailable, write the plan yourself using the section structure in step 3
+below; the checkpoint is the part that matters, not which skill writes it.
 
 1. **Analyze the auditor's recommended fix** — evaluate feasibility, correctness, side effects
 2. **Consider alternatives** — is there a simpler, safer, or more idiomatic fix?
@@ -193,10 +197,14 @@ After RED: you have a failing test that proves the bug exists. The test will pas
 2. **Run the converted test** — it must PASS
 3. **Run the full test suite** — all tests must pass
    - If other tests break: the fix has side effects. Analyze and adjust.
-4. **REQUIRED SUB-SKILL:** `superpowers:verification-before-completion`
+4. **Verification step** — if the `superpowers` plugin is installed, use
+   `superpowers:verification-before-completion`. It is not a dependency of this
+   plugin, so when it is absent perform the same checks directly, in this order:
    - Re-read the ISSUE.md
    - Confirm the fix addresses the exact vulnerability described
    - Verify no assertions were weakened or removed
+   - Re-run the converted test *and* the full suite, and read the actual output
+     rather than assuming the previous run still holds
 
 After GREEN: the bug is fixed and all tests pass.
 
